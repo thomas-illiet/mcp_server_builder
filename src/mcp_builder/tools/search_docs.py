@@ -48,13 +48,13 @@ def register(mcp, services: Services):
         version: Annotated[str, Field(max_length=80)] | None = None,
         mode: Literal["hybrid", "lexical", "semantic"] = "hybrid",
     ) -> SearchResponse:
-        """Search local official docs. French questions are supported by semantic/hybrid mode."""
+        """Search the bundled official documentation before designing or generating MCP code."""
         try:
             result = await asyncio.to_thread(
                 services.documents().search, query, k, source, version, mode
             )
         except EmbeddingUnavailableError as exc:
             raise ToolError(
-                "Recherche sémantique indisponible. Réessayez en mode lexical ou hybrid."
+                "Semantic search is unavailable. Retry in lexical or hybrid mode."
             ) from exc
         return SearchResponse.model_validate(result)

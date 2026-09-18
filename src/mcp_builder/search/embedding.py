@@ -24,10 +24,10 @@ def _secret(value: str | None, file_name: str | None) -> str:
         try:
             result = Path(file_name).read_text(encoding="utf-8").strip()
         except OSError as exc:
-            raise ValueError("Impossible de lire OPENAI_API_KEY_FILE") from exc
+            raise ValueError("Cannot read OPENAI_API_KEY_FILE") from exc
         if result:
             return result
-    raise ValueError("OPENAI_API_KEY ou OPENAI_API_KEY_FILE est obligatoire")
+    raise ValueError("OPENAI_API_KEY or OPENAI_API_KEY_FILE is required")
 
 
 class Embedder:
@@ -49,17 +49,17 @@ class Embedder:
         """Load configuration locally; endpoint availability is checked only on encode."""
         base_url = (base_url or os.getenv("OPENAI_BASE_URL", "")).rstrip("/")
         if not base_url or not base_url.endswith("/v1"):
-            raise ValueError("OPENAI_BASE_URL doit être défini et se terminer par /v1")
+            raise ValueError("OPENAI_BASE_URL must be set and end with /v1")
         self.model = model or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
         if not self.model.strip():
-            raise ValueError("EMBEDDING_MODEL ne peut pas être vide")
+            raise ValueError("EMBEDDING_MODEL cannot be empty")
         key = _secret(
             api_key or os.getenv("OPENAI_API_KEY"),
             api_key_file or os.getenv("OPENAI_API_KEY_FILE"),
         )
         request_timeout = timeout or float(os.getenv("EMBEDDING_TIMEOUT", "60"))
         if request_timeout <= 0 or concurrency < 1:
-            raise ValueError("Configuration d'embedding invalide")
+            raise ValueError("Invalid embedding configuration")
         self.client = client or httpx.Client(
             base_url=base_url + "/",
             headers={"Authorization": f"Bearer {key}"},
@@ -79,7 +79,7 @@ class Embedder:
         """
         del query
         if not texts or any(not isinstance(text, str) or not text for text in texts):
-            raise ValueError("La liste de textes d'embedding est invalide")
+            raise ValueError("The embedding text list is invalid")
         response = None
         with self.gate:
             for attempt in range(3):
@@ -90,19 +90,19 @@ class Embedder:
                 except httpx.TransportError as exc:
                     if attempt == 2:
                         raise EmbeddingUnavailableError(
-                            "Endpoint d'embedding indisponible"
+                            "Embedding endpoint unavailable"
                         ) from exc
                 else:
                     if response.status_code != 429 and response.status_code < 500:
                         break
                     if attempt == 2:
                         raise EmbeddingUnavailableError(
-                            f"Endpoint d'embedding indisponible (HTTP {response.status_code})"
+                            f"Embedding endpoint unavailable (HTTP {response.status_code})"
                         )
                 self.sleeper(0.25 * (2**attempt))
         if response is None or response.is_error:
-            status = response.status_code if response is not None else "inconnu"
-            raise RuntimeError(f"Requête d'embedding refusée (HTTP {status})")
+            status = response.status_code if response is not None else "unknown"
+            raise RuntimeError(f"Embedding request rejected (HTTP {status})")
         try:
             payload = response.json()
             data = payload["data"]
@@ -113,10 +113,10 @@ class Embedder:
                 raise ValueError
             vectors = np.asarray([item["embedding"] for item in ordered], dtype=np.float32)
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("Réponse d'embedding invalide") from exc
+            raise ValueError("Invalid embedding response") from exc
         if vectors.ndim != 2 or vectors.shape[1] < 1 or not np.isfinite(vectors).all():
-            raise ValueError("Vecteurs d'embedding invalides")
+            raise ValueError("Invalid embedding vectors")
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         if np.any(norms == 0) or not np.isfinite(norms).all():
-            raise ValueError("Vecteurs d'embedding nuls ou invalides")
+            raise ValueError("Zero or invalid embedding vectors")
         return np.asarray(vectors / norms, dtype=np.float32)

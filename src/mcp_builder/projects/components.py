@@ -14,10 +14,10 @@ REFERENCES = {
 }
 
 
-def _identifier(value: str, label: str = "Nom") -> str:
+def _identifier(value: str, label: str = "Name") -> str:
     """Validate a lowercase Python identifier used in a generated path."""
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value) or keyword.iskeyword(value):
-        raise ValueError(f"{label} attendu : identifiant Python minuscule, 1 à 64 caractères")
+        raise ValueError(f"{label} must be a lowercase Python identifier, 1 to 64 characters")
     return value
 
 
@@ -27,16 +27,16 @@ def _parameters(parameters) -> str:
     rendered: list[str] = []
     optional_seen = False
     for parameter in parameters:
-        name = _identifier(parameter.name, "Paramètre")
+        name = _identifier(parameter.name, "Parameter")
         if name in seen:
-            raise ValueError(f"Paramètre dupliqué : {name}")
+            raise ValueError(f"Duplicate parameter: {name}")
         seen.add(name)
         if not parameter.required:
             optional_seen = True
             annotation = f"Annotated[{parameter.type}, Field(description={parameter.description!r})]"
             rendered.append(f"{name}: {annotation} | None = None")
         elif optional_seen:
-            raise ValueError("Les paramètres requis doivent précéder les paramètres optionnels")
+            raise ValueError("Required parameters must precede optional parameters")
         else:
             annotation = f"Annotated[{parameter.type}, Field(description={parameter.description!r})]"
             rendered.append(f"{name}: {annotation}")
@@ -79,9 +79,9 @@ def _result(path: str, code: str, test: str, kind: str) -> GenerationResult:
     return GenerationResult(
         files=[{"path": path, "content": code},
                {"path": f"tests/test_{path.rsplit('/', 1)[-1]}", "content": test}],
-        warnings=["Le squelette contient un TODO qui échoue jusqu'à son implémentation."],
-        assumptions=["app.instance expose une instance FastMCP nommée mcp.",
-                     "Le package du composant est importé explicitement par app.server."],
+        warnings=["The skeleton contains a failing TODO until it is implemented."],
+        assumptions=["app.instance exposes a FastMCP instance named mcp.",
+                     "The component package is imported explicitly by app.server."],
         references=[REFERENCES[kind], REFERENCES["testing"]],
     )
 
@@ -118,11 +118,11 @@ def generate_resource(spec: ResourceSpec) -> GenerationResult:
     if (not parsed.scheme or any(char.isspace() for char in spec.uri)
             or ".." in (*parsed.path.split("/"), parsed.netloc)
             or "{" in template_without_fields or "}" in template_without_fields):
-        raise ValueError("URI de resource absolue et sûre attendue")
+        raise ValueError("Expected an absolute, safe resource URI")
     parameters = _parameters(spec.parameters)
     fields = set(re.findall(r"{([a-z][a-z0-9_]*)}", spec.uri))
     if fields != {parameter.name for parameter in spec.parameters}:
-        raise ValueError("Les paramètres doivent correspondre exactement au template d'URI")
+        raise ValueError("Parameters must exactly match the URI template")
     prefix = "async " if spec.is_async else ""
     code = f'''"""Register the {name} MCP resource."""
 
@@ -176,7 +176,7 @@ def generate_component_test(kind: str, specification: dict) -> GenerationResult:
         "prompt": (PromptSpec, generate_prompt),
     }
     if kind not in generators:
-        raise ValueError("Type de composant attendu : tool, resource ou prompt")
+        raise ValueError("Expected component type: tool, resource, or prompt")
     model, generator = generators[kind]
     result = generator(model.model_validate(specification))
     return result.model_copy(update={"files": [result.files[1]]})

@@ -52,7 +52,12 @@ async def test_new_tools_are_published_with_structured_schemas_and_callable():
         assert tools["generate_tool"].output_schema["type"] == "object"
 
         guide = await client.call_tool("get_builder_guide", {})
-        assert "FastMCP" in _data(guide)["guide"]
+        guide_data = _data(guide)
+        assert "Mandatory MCP Builder workflow" in guide_data["guide"]
+        assert guide_data["required_tool_workflow"][0]["tools"] == ["get_doc_status"]
+        assert guide_data["required_tool_workflow"][-1] == {
+            "step": 6, "tools": ["validate_project"], "required": True,
+        }
         generated = await client.call_tool("generate_tool", {"specification": {
             "name": "lookup", "description": "Look up a value.", "parameters": [],
             "return_type": "str", "is_async": True,
@@ -114,5 +119,5 @@ async def test_search_docs_schema_and_semantic_error_are_actionable():
         result = await client.call_tool("search_docs", {"query": "tool", "mode": "lexical"})
         assert _data(result)["results"] == []
         assert _data(result)["schema_version"] == "1"
-        with pytest.raises(Exception, match="lexical ou hybrid"):
+        with pytest.raises(Exception, match="lexical or hybrid"):
             await client.call_tool("search_docs", {"query": "tool", "mode": "semantic"})

@@ -23,16 +23,16 @@ def _change(path: str, content: str, reason: str, existing: str | None = None) -
 def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> PatchProposal:
     """Propose component, test and explicit registration changes for an existing project."""
     if not 1 <= len(files) <= 100:
-        raise ValueError("Entre 1 et 100 fichiers requis")
+        raise ValueError("Between 1 and 100 files are required")
     if sum(len(item.get("content", "").encode()) for item in files) > 1_000_000:
-        raise ValueError("Projet limité à 1 Mo")
+        raise ValueError("Project size is limited to 1 MB")
     file_map: dict[str, str] = {}
     for item in files:
         path = item["path"]
         parts = PurePosixPath(path).parts
         if (not path or path in file_map or path.startswith("/") or "\\" in path
                 or ":" in path or ".." in parts):
-            raise ValueError("Le projet contient un chemin invalide ou dupliqué")
+            raise ValueError("The project contains an invalid or duplicate path")
         file_map[path] = item["content"]
     generators = {
         "tool": (ToolSpec, generate_tool, "tools"),
@@ -40,7 +40,7 @@ def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> 
         "prompt": (PromptSpec, generate_prompt, "prompts"),
     }
     if kind not in generators:
-        raise ValueError("Type de composant attendu : tool, resource ou prompt")
+        raise ValueError("Expected component type: tool, resource, or prompt")
     model, generator, package = generators[kind]
     generated = generator(model.model_validate(specification))
     component, test = generated.files
@@ -51,7 +51,7 @@ def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> 
     try:
         init_tree = ast.parse(init_content)
     except SyntaxError as exc:
-        raise ValueError(f"Impossible de modifier {init_path} : syntaxe invalide") from exc
+        raise ValueError(f"Cannot modify {init_path}: invalid syntax") from exc
     registered = any(
         isinstance(statement, ast.ImportFrom) and statement.level == 1
         and ((statement.module or "").split(".", 1)[0] == name
@@ -61,19 +61,19 @@ def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> 
     )
     changes = [
         _change(component.path, component.content,
-                f"Ajouter ou régénérer le {kind} {name} dans son module dédié.",
+                f"Add or regenerate the {kind} {name} in its dedicated module.",
                 file_map.get(component.path)),
         _change(test.path, test.content,
-                f"Ajouter ou régénérer le test ciblé du {kind} {name}.", file_map.get(test.path)),
+                f"Add or regenerate the focused test for {kind} {name}.", file_map.get(test.path)),
     ]
     if not registered:
         separator = "" if init_content.endswith("\n") else "\n"
         updated = f"{init_content}{separator}\nfrom . import {name} as {name}\n"
         changes.append(_change(init_path, updated,
-                               f"Enregistrer explicitement le module {name}.", init_existing))
+                               f"Register the {name} module explicitly.", init_existing))
     warnings = list(generated.warnings)
     if component.path in file_map or test.path in file_map:
-        warnings.append("Au moins un fichier existant serait remplacé ; vérifier original_sha256.")
+        warnings.append("At least one existing file would be replaced; verify original_sha256.")
     return PatchProposal(changes=changes, warnings=warnings,
                          assumptions=generated.assumptions,
                          references=generated.references)

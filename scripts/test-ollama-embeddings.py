@@ -14,10 +14,10 @@ from mcp_builder.server import create_app
 
 
 def make_sources(root: Path) -> None:
-    """Create a tiny, valid bilingual documentation snapshot."""
+    """Create a tiny, valid English documentation snapshot."""
     contents = {
-        "docs/fastmcp/serveur.md": "# Serveur\nFastMCP crée un serveur MCP en Python.\n",
-        "docs/mcp/outils.md": "# Outils\nLes outils MCP exposent des fonctions aux clients.\n",
+        "docs/fastmcp/server.md": "# Server\nFastMCP creates an MCP server in Python.\n",
+        "docs/mcp/tools.md": "# Tools\nMCP tools expose functions to clients.\n",
         "indexes/fastmcp.txt": "fastmcp\n",
         "indexes/mcp.txt": "mcp\n",
     }
@@ -31,10 +31,10 @@ def make_sources(root: Path) -> None:
         "complete": True,
         "created_at": "2026-09-18T00:00:00Z",
         "documents": [
-            {"id": "serveur", "title": "Serveur", "path": "docs/fastmcp/serveur.md",
-             "source": "fastmcp", "version": "test", "url": "https://example.test/serveur"},
-            {"id": "outils", "title": "Outils", "path": "docs/mcp/outils.md",
-             "source": "mcp", "version": "test", "url": "https://example.test/outils"},
+            {"id": "server", "title": "Server", "path": "docs/fastmcp/server.md",
+             "source": "fastmcp", "version": "test", "url": "https://example.test/server"},
+            {"id": "tools", "title": "Tools", "path": "docs/mcp/tools.md",
+             "source": "mcp", "version": "test", "url": "https://example.test/tools"},
         ],
         "files": {name: digest(root / name) for name in contents},
         "sources": {
@@ -51,10 +51,10 @@ def main() -> None:
     os.environ.setdefault("EMBEDDING_MODEL", "bge-m3")
     try:
         embedder = Embedder(timeout=30)
-        probe = embedder.encode(["test de disponibilité"])
+        probe = embedder.encode(["availability test"])
     except Exception as exc:
         raise SystemExit(
-            "Ollama/BGE-M3 indisponible. Exécutez `ollama pull bge-m3` et démarrez Ollama."
+            "Ollama/BGE-M3 is unavailable. Run `ollama pull bge-m3` and start Ollama."
         ) from exc
     if probe.shape != (1, 1024):
         raise SystemExit(f"Dimension BGE-M3 inattendue : {probe.shape}")
@@ -69,11 +69,11 @@ def main() -> None:
         with TestClient(create_app(store)) as client:
             response = client.get("/health")
             if response.status_code != 200 or response.json() != {"status": "ok"}:
-                raise SystemExit(f"Healthcheck invalide : {response.status_code}")
+                raise SystemExit(f"Invalid health check: {response.status_code}")
         for mode in ("lexical", "semantic", "hybrid"):
-            if not store.search("Comment créer un serveur MCP ?", mode=mode):
-                raise SystemExit(f"Aucun résultat en mode {mode}")
-    print("Ollama bge-m3 : health, lexical, semantic et hybrid validés")
+            if not store.search("How do I create an MCP server?", mode=mode):
+                raise SystemExit(f"No results in {mode} mode")
+    print("Ollama bge-m3: health, lexical, semantic, and hybrid checks passed")
 
 
 if __name__ == "__main__":

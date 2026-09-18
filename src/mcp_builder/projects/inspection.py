@@ -27,7 +27,7 @@ def inspect_project(files: list[dict]) -> InspectionResult:
     """Map components, models, dependencies and tests through bounded static parsing."""
     validation = validate_project(files)
     if any(item["code"] == "invalid_path" for item in validation["diagnostics"]):
-        raise ValueError("Le projet contient un chemin invalide ou dupliqué")
+        raise ValueError("The project contains an invalid or duplicate path")
     file_map = {item["path"]: item["content"] for item in files}
     exports: dict[str, set[str]] = {}
     trees: dict[str, ast.AST] = {}

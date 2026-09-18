@@ -60,7 +60,7 @@ def test_closed_types_and_resource_templates_are_validated():
         ToolSpec(name="bad", description="Extra input.", return_type="str", python="import os")
     spec = ResourceSpec(name="record", uri="record://{missing}", parameters=[],
                         return_type="str")
-    with pytest.raises(ValueError, match="correspondre"):
+    with pytest.raises(ValueError, match="exactly match"):
         generate_resource(spec)
 
 
@@ -83,6 +83,8 @@ def test_structured_project_has_explicit_packages_guide_and_valid_layout():
     }
     assert required <= files.keys()
     assert "MCP_BUILDER_GUIDE.md" in files["README.md"]
+    assert "Mandatory MCP Builder workflow" in files["MCP_BUILDER_GUIDE.md"]
+    assert "call `validate_project` again" in files["MCP_BUILDER_GUIDE.md"]
     for path, content in files.items():
         if path.endswith(".py"):
             ast.parse(content)
