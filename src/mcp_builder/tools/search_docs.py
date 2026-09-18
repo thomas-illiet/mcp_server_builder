@@ -2,9 +2,40 @@
 import asyncio
 from typing import Annotated, Literal
 
-from pydantic import Field
+from fastmcp.exceptions import ToolError
+from pydantic import BaseModel, Field
+
+from mcp_builder import BUILDER_VERSION, FASTMCP_VERSION, SCHEMA_VERSION
+from mcp_builder.search.embedding import EmbeddingUnavailableError
 
 from .services import Services
+
+
+class SearchResult(BaseModel):
+    """One ranked documentation passage with its official reference."""
+
+    id: int
+    doc_id: str
+    title: str
+    section: str
+    source: str
+    version: str
+    url: str
+    score: float
+    snippet: str
+
+
+class SearchResponse(BaseModel):
+    """Expose the requested and effective retrieval strategies."""
+
+    schema_version: str = SCHEMA_VERSION
+    server_version: str = BUILDER_VERSION
+    fastmcp_version: str = FASTMCP_VERSION
+    results: list[SearchResult]
+    requested_mode: Literal["hybrid", "lexical", "semantic"]
+    effective_mode: Literal["hybrid", "lexical", "semantic"]
+    fallback_used: bool
+    warnings: list[str]
 
 
 def register(mcp, services: Services):
@@ -16,6 +47,14 @@ def register(mcp, services: Services):
         source: Literal["fastmcp", "mcp"] | None = None,
         version: Annotated[str, Field(max_length=80)] | None = None,
         mode: Literal["hybrid", "lexical", "semantic"] = "hybrid",
-    ) -> list[dict]:
+    ) -> SearchResponse:
         """Search local official docs. French questions are supported by semantic/hybrid mode."""
-        return await asyncio.to_thread(services.documents().search, query, k, source, version, mode)
+        try:
+            result = await asyncio.to_thread(
+                services.documents().search, query, k, source, version, mode
+            )
+        except EmbeddingUnavailableError as exc:
+            raise ToolError(
+                "Recherche sémantique indisponible. Réessayez en mode lexical ou hybrid."
+            ) from exc
+        return SearchResponse.model_validate(result)

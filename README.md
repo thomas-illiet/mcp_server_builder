@@ -146,7 +146,14 @@ docker compose --profile test run --rm tests
 docker compose --profile test run --rm tests uv run --locked --no-sync python scripts/test-generated-project.py
 ```
 
-The seven tools: `search_docs`, `read_doc`, `get_doc_status`, `list_templates`,
-`generate_project`, `get_example`, `validate_project`. Submitted files are
-neither executed nor retained. Generated projects use uv; their owner creates
-and versions their `uv.lock` before a locked build.
+The fifteen tools include documentation search/status/read, templates and examples,
+`generate_project`, `generate_tool`, `generate_resource`, `generate_prompt`,
+`generate_component_test`, `get_builder_guide`, static `validate_project`,
+`inspect_project`, `propose_project_patch`, and `review_project_security`.
+`search_docs` exposes its requested/effective mode and automatically falls back from
+hybrid to lexical retrieval when the embedding endpoint is temporarily unavailable.
+For an existing codebase, inspect it first, review diagnostics, then request a patch.
+Patch proposals are never applied by the service and include the SHA-256 of every
+replaced source file so clients can reject stale changes.
+Submitted files are neither executed nor retained. Generated projects use uv; their
+owner creates and versions their `uv.lock` before a locked build.

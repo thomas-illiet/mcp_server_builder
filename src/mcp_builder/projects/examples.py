@@ -1,5 +1,5 @@
 """Trusted FastMCP snippets and official references."""
-from mcp_builder import FASTMCP_VERSION
+from mcp_builder import BUILDER_VERSION, FASTMCP_VERSION, SCHEMA_VERSION
 
 EXAMPLES = {
     "tool": ("servers/tools", '''@mcp.tool
@@ -57,6 +57,7 @@ def get_example(topic: str) -> dict:
     if topic not in EXAMPLES:
         raise ValueError(f"Exemples disponibles : {', '.join(EXAMPLES)}")
     page, code = EXAMPLES[topic]
-    return {"topic": topic, "code": code, "reference": f"https://gofastmcp.com/{page}.md",
+    return {"schema_version": SCHEMA_VERSION, "generator_version": BUILDER_VERSION,
+            "topic": topic, "code": code, "reference": f"https://gofastmcp.com/{page}.md",
             "requires": "from fastmcp import FastMCP; mcp = FastMCP('Example')",
             "fastmcp_version": FASTMCP_VERSION}

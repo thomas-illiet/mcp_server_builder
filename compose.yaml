@@ -29,6 +29,22 @@ services:
     security_opt: [no-new-privileges:true]
     restart: unless-stopped
 
+  tests:
+    profiles: [test]
+    image: offline-mcp-builder-tests:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: tests
+    environment:
+      RUFF_CACHE_DIR: /tmp/ruff-cache
+      UV_CACHE_DIR: /tmp/uv-cache
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
 secrets:
   openai_api_key:
     file: ${OPENAI_API_KEY_FILE_HOST:?OPENAI_API_KEY_FILE_HOST is required}
