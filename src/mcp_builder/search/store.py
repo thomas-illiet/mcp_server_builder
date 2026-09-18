@@ -9,8 +9,9 @@ from pathlib import Path
 
 import numpy as np
 
-from mcp_builder import DEFAULT_EMBEDDING_MODEL
+from mcp_builder import BUILDER_VERSION, DEFAULT_EMBEDDING_MODEL, SCHEMA_VERSION
 from mcp_builder.corpus.files import digest, resolve_bundle, safe_path
+from mcp_builder.search.embedding import EmbeddingUnavailableError
 
 
 def verify_bundle(root: Path, model_id: str | None = None) -> dict:
@@ -144,14 +145,14 @@ class Store:
             db.close()
 
     def search(self, query: str, k: int = 5, source: str | None = None,
-               version: str | None = None, mode: str = "hybrid") -> list[dict]:
+               version: str | None = None, mode: str = "hybrid") -> dict:
         """Return up to k distinct documents ranked by lexical, semantic or hybrid search.
 
         Source/version filters constrain both candidate sets before ranking.
         Hybrid mode fuses the first 100 results of each ranker with RRF(k=60);
         ties are ordered by passage ID. Each result includes a 1600-character
         snippet and official reference. Invalid inputs raise ValueError; valid
-        filters with no matching passages return an empty list.
+        filters with no matching passages return an envelope containing an empty result list.
         """
         if not query.strip() or len(query.encode("utf-8")) > 7800 or not 1 <= k <= 20:
             raise ValueError("Question vide/trop longue ou k hors de [1,20]")
@@ -172,7 +173,7 @@ class Store:
                 f"SELECT * FROM passages WHERE {where}", params
             )}
             if not rows:
-                return []
+                return self._search_response([], mode, mode)
             rankings = []
             if mode != "semantic":
                 terms = re.findall(r"\w+", query, flags=re.UNICODE)[:64]
@@ -187,12 +188,31 @@ class Store:
                     )]
                 rankings.append(lexical)
             if mode != "lexical":
-                vector = self.embedder.encode([query], query=True)[0]
+                try:
+                    vector = self.embedder.encode([query], query=True)[0]
+                except EmbeddingUnavailableError:
+                    if mode == "semantic":
+                        raise
+                    return self._rank_results(rows, rankings, k, mode, "lexical")
                 if vector.shape != (self.manifest["dimensions"],):
                     raise ValueError("Dimension d'embedding incompatible avec l'index")
                 ids = np.array(sorted(rows), dtype=np.int64)
                 scores = self.vectors[ids] @ vector
                 rankings.append(ids[np.argsort(-scores, kind="stable")[:100]].tolist())
+        return self._rank_results(rows, rankings, k, mode, mode)
+
+    @staticmethod
+    def _search_response(results: list[dict], requested: str, effective: str) -> dict:
+        """Wrap results with transparent retrieval mode and fallback metadata."""
+        fallback = requested != effective
+        warnings = (["Recherche sémantique indisponible ; résultats lexicaux retournés."]
+                    if fallback else [])
+        return {"results": results, "requested_mode": requested, "effective_mode": effective,
+                "fallback_used": fallback, "warnings": warnings}
+
+    def _rank_results(self, rows: dict, rankings: list[list[int]], k: int,
+                      requested: str, effective: str) -> dict:
+        """Fuse rankings and return one passage per document in a typed envelope."""
         fused = {}
         for ranking in rankings:
             for rank, passage_id in enumerate(ranking, 1):
@@ -210,7 +230,7 @@ class Store:
             results.append(row)
             if len(results) == k:
                 break
-        return results
+        return self._search_response(results, requested, effective)
 
     def read(self, doc_id: str, section: str | None = None, offset: int = 0,
              limit: int = 12000) -> dict:
@@ -239,6 +259,17 @@ class Store:
     def status(self) -> dict:
         """Return corpus/model metadata and the integrity status checked at startup."""
         m = self.manifest
+        semantic = {
+            "configured": True,
+            "provider": m["model"]["provider"],
+            "model": m["model"]["id"],
+            "endpoint": getattr(self.embedder, "base_url", None),
+            "timeout_seconds": getattr(self.embedder, "timeout", None),
+            "network_checked": False,
+        }
         return {key: m[key] for key in (
             "created_at", "model", "fastmcp_tested", "passages", "dimensions", "sources"
-        )} | {"documents": len(m["documents"]), "integrity": "verified_at_startup"}
+        )} | {"schema_version": SCHEMA_VERSION, "server_version": BUILDER_VERSION,
+             "documents": len(m["documents"]), "integrity": "verified_at_startup",
+             "search": {"lexical": {"available": True, "network_required": False},
+                        "semantic": semantic}}

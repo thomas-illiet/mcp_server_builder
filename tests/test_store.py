@@ -1,9 +1,11 @@
 """Bundle and retrieval tests with deterministic embeddings."""
 
+import httpx
 import numpy as np
 import pytest
 
 from mcp_builder.corpus.files import digest, write_json
+from mcp_builder.search.embedding import Embedder, EmbeddingUnavailableError
 from mcp_builder.search.index import build
 from mcp_builder.search.store import Store, verify_bundle
 
@@ -87,7 +89,61 @@ def test_manifest_records_remote_model_and_rejects_e5(indexed_bundle):
 def test_lexical_search_never_calls_embedder(indexed_bundle):
     """Lexical retrieval remains available without the remote endpoint."""
     store = Store(indexed_bundle, embedder=OfflineEmbedder())
-    assert store.search("banana", mode="lexical")[0]["doc_id"] == "banana"
+    response = store.search("banana", mode="lexical")
+    assert response["results"][0]["doc_id"] == "banana"
+    assert response["fallback_used"] is False
+
+
+def test_hybrid_falls_back_only_for_endpoint_unavailability(indexed_bundle):
+    """Hybrid retrieval returns lexical results and advertises its degraded mode."""
+    class UnavailableEmbedder(FakeEmbedder):
+        def encode(self, texts, *, query=False):
+            raise EmbeddingUnavailableError("offline")
+
+    store = Store(indexed_bundle, embedder=UnavailableEmbedder())
+    response = store.search("banana", mode="hybrid")
+    assert response["results"][0]["doc_id"] == "banana"
+    assert response["requested_mode"] == "hybrid"
+    assert response["effective_mode"] == "lexical"
+    assert response["fallback_used"] is True
+    assert response["warnings"]
+
+
+@pytest.mark.parametrize("failure", ["network", "timeout", "429", "503"])
+def test_hybrid_falls_back_for_transient_http_failures(indexed_bundle, failure):
+    """Network, timeout, rate limit and server errors all preserve lexical search."""
+    def handler(request):
+        if failure == "network":
+            raise httpx.ConnectError("offline", request=request)
+        if failure == "timeout":
+            raise httpx.ReadTimeout("late", request=request)
+        return httpx.Response(int(failure))
+
+    embedder = Embedder(
+        base_url="http://embeddings.test/v1", api_key="secret", model="bge-m3",
+        transport=httpx.MockTransport(handler), sleeper=lambda _: None,
+    )
+    response = Store(indexed_bundle, embedder=embedder).search("banana", mode="hybrid")
+    assert response["effective_mode"] == "lexical"
+    assert response["fallback_used"] is True
+
+
+def test_search_filters_and_empty_results_use_the_envelope(indexed_bundle):
+    """Filters constrain results and no-match searches retain response metadata."""
+    store = Store(indexed_bundle, embedder=FakeEmbedder())
+    assert store.search("banana", source="mcp", mode="lexical")["results"] == []
+    assert store.search("banana", version="missing", mode="hybrid") == {
+        "results": [], "requested_mode": "hybrid", "effective_mode": "hybrid",
+        "fallback_used": False, "warnings": [],
+    }
+
+
+def test_status_reports_search_configuration_without_network(indexed_bundle):
+    """Status describes both retrieval modes without calling the endpoint."""
+    store = Store(indexed_bundle, embedder=OfflineEmbedder())
+    status = store.status()
+    assert status["search"]["lexical"] == {"available": True, "network_required": False}
+    assert status["search"]["semantic"]["network_checked"] is False
 
 
 def test_semantic_dimension_must_match_bundle(indexed_bundle):

@@ -2,9 +2,10 @@
 import keyword
 import re
 
-from mcp_builder import FASTMCP_VERSION
+from mcp_builder import BUILDER_VERSION, FASTMCP_VERSION, SCHEMA_VERSION
 
 from .examples import EXAMPLES
+from .guide import GUIDE
 
 
 def list_templates() -> list[dict]:
@@ -63,6 +64,7 @@ CMD ["python", "-m", "app.server"]
 ''',
         ".dockerignore": ".venv\n__pycache__\n.git\n",
         ".gitignore": ".venv/\n__pycache__/\n.pytest_cache/\n",
+        "MCP_BUILDER_GUIDE.md": GUIDE,
         "tests/test_server.py": EXAMPLES["testing"][1],
     }
     preamble = ('"""Create the shared MCP instance used by the application components."""\n\n'
@@ -74,8 +76,14 @@ CMD ["python", "-m", "app.server"]
         server = ('"""Register components on import and start the selected transport when run."""\n\n'
                   "from app.instance import mcp\n"
                   "from app import tools, resources, prompts  # noqa: F401\n")
-        for module, topic in [("tools", "tool"), ("resources", "resource"), ("prompts", "prompt")]:
-            files[f"app/{module}.py"] = (
+        components = (("tools", "add", "tool"), ("resources", "version", "resource"),
+                      ("prompts", "explain", "prompt"))
+        for package, module, topic in components:
+            files[f"app/{package}/__init__.py"] = (
+                f'"""Explicitly register the {topic} modules."""\n\n'
+                f"from . import {module} as {module}\n"
+            )
+            files[f"app/{package}/{module}.py"] = (
                 f'"""Register the example {topic} on the shared MCP instance."""\n\n'
                 "from app.instance import mcp\n\n" + EXAMPLES[topic][1])
         files["tests/test_server.py"] += '''
@@ -94,6 +102,8 @@ async def test_resources_and_prompts():
     files["README.md"] = f'''# {name}
 
 Serveur FastMCP {FASTMCP_VERSION} — transport {transport}.
+
+Consultez [MCP_BUILDER_GUIDE.md](MCP_BUILDER_GUIDE.md) avant d'ajouter un composant.
 
 ```bash
 uv lock
@@ -115,6 +125,7 @@ Pour un déploiement hors ligne, construire l'image en amont puis la transférer
 Les exemples sont fonctionnels ; adaptez les outils au besoin métier.
 Documentation : https://gofastmcp.com/servers/server.md
 '''
-    return {"name": name, "template": template, "transport": transport,
+    return {"schema_version": SCHEMA_VERSION, "generator_version": BUILDER_VERSION,
+            "name": name, "template": template, "transport": transport,
             "fastmcp_version": FASTMCP_VERSION,
             "files": [{"path": path, "content": content} for path, content in files.items()]}

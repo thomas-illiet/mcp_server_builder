@@ -12,6 +12,10 @@ import numpy as np
 from mcp_builder import DEFAULT_EMBEDDING_MODEL
 
 
+class EmbeddingUnavailableError(RuntimeError):
+    """Report a transient failure of the configured embedding endpoint."""
+
+
 def _secret(value: str | None, file_name: str | None) -> str:
     """Resolve a direct secret or a secret file without exposing its value."""
     if value:
@@ -64,6 +68,8 @@ class Embedder:
         )
         self.gate = BoundedSemaphore(concurrency)
         self.sleeper = sleeper
+        self.base_url = base_url
+        self.timeout = request_timeout
 
     def encode(self, texts: list[str], *, query: bool = False) -> np.ndarray:
         """Return normalized float32 vectors in the same order as ``texts``.
@@ -83,12 +89,14 @@ class Embedder:
                     )
                 except httpx.TransportError as exc:
                     if attempt == 2:
-                        raise RuntimeError("Endpoint d'embedding indisponible") from exc
+                        raise EmbeddingUnavailableError(
+                            "Endpoint d'embedding indisponible"
+                        ) from exc
                 else:
                     if response.status_code != 429 and response.status_code < 500:
                         break
                     if attempt == 2:
-                        raise RuntimeError(
+                        raise EmbeddingUnavailableError(
                             f"Endpoint d'embedding indisponible (HTTP {response.status_code})"
                         )
                 self.sleeper(0.25 * (2**attempt))
