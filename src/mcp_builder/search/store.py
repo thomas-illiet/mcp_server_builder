@@ -23,35 +23,35 @@ def verify_bundle(root: Path, model_id: str | None = None) -> dict:
     """
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("schema") != 1 or not manifest.get("complete"):
-        raise ValueError("Lot incomplet ou format non supporté")
+        raise ValueError("Incomplete bundle or unsupported format")
     expected_model = model_id or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
     if manifest.get("model") != {"provider": "openai-compatible", "id": expected_model}:
-        raise ValueError("Modèle du lot incompatible ; reconstruire les index")
+        raise ValueError("Bundle model mismatch; rebuild the indexes")
     for name, expected in manifest["files"].items():
         path = safe_path(root, name)
         if not path.is_file() or digest(path) != expected:
-            raise ValueError(f"Échec d'intégrité : {name}")
+            raise ValueError(f"Integrity check failed: {name}")
     required = {"index.sqlite", "vectors.npy"}
     required.update(doc["path"] for doc in manifest["documents"])
     if not required.issubset(manifest["files"]):
-        raise ValueError("Fichiers requis absents du manifeste")
+        raise ValueError("Required files are missing from the manifest")
     db = sqlite3.connect((root / "index.sqlite").resolve().as_uri() + "?mode=ro", uri=True)
     try:
         total, first, last = db.execute("SELECT count(*),min(id),max(id) FROM passages").fetchone()
         if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-            raise ValueError("Index SQLite invalide")
+            raise ValueError("Invalid SQLite index")
         if total < 1 or first != 0 or last != total - 1:
-            raise ValueError("Identifiants de passages incohérents")
+            raise ValueError("Inconsistent passage identifiers")
     finally:
         db.close()
     vectors = np.load(root / "vectors.npy", mmap_mode="r", allow_pickle=False)
     try:
         if vectors.shape != (total, manifest["dimensions"]) or total != manifest["passages"]:
-            raise ValueError("Index et vecteurs incohérents")
+            raise ValueError("Index and vectors are inconsistent")
         if not np.isfinite(vectors).all() or not np.allclose(
             np.linalg.norm(vectors, axis=1), 1, atol=1e-4
         ):
-            raise ValueError("Vecteurs non normalisés ou invalides")
+            raise ValueError("Vectors are not normalized or are invalid")
     finally:
         del vectors
     return manifest
@@ -90,7 +90,7 @@ def build_index(root: Path, documents: list[dict], embedder) -> int:
                            (index, doc["title"], section, content))
                 texts.append(content)
         if not texts:
-            raise ValueError("Aucun passage documentaire")
+            raise ValueError("No documentation passages found")
         # Bounded batches avoid keeping an additional corpus-sized embedding input in RAM.
         first_end = min(128, len(texts))
         first_batch = embedder.encode(texts[:first_end])
@@ -98,17 +98,17 @@ def build_index(root: Path, documents: list[dict], embedder) -> int:
             root / "vectors.npy", mode="w+", dtype=np.float32,
             shape=(len(texts), first_batch.shape[1]),
         )
-        print(f"Indexation : {len(texts)} passages", flush=True)
+        print(f"Indexing: {len(texts)} passages", flush=True)
         vectors[:first_end] = first_batch
-        print(f"Embeddings : {first_end}/{len(texts)}", flush=True)
+        print(f"Embeddings: {first_end}/{len(texts)}", flush=True)
         for start in range(first_end, len(texts), 128):
             vectors[start:start + 128] = embedder.encode(texts[start:start + 128])
-            print(f"Embeddings : {min(start + 128, len(texts))}/{len(texts)}", flush=True)
+            print(f"Embeddings: {min(start + 128, len(texts))}/{len(texts)}", flush=True)
         vectors.flush()
         del vectors
         db.commit()
         if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-            raise ValueError("Index SQLite invalide")
+            raise ValueError("Invalid SQLite index")
         return len(texts)
     finally:
         db.close()
@@ -155,11 +155,11 @@ class Store:
         filters with no matching passages return an envelope containing an empty result list.
         """
         if not query.strip() or len(query.encode("utf-8")) > 7800 or not 1 <= k <= 20:
-            raise ValueError("Question vide/trop longue ou k hors de [1,20]")
+            raise ValueError("Query is empty or too long, or k is outside [1,20]")
         if mode not in {"hybrid", "lexical", "semantic"}:
-            raise ValueError("Mode inconnu")
+            raise ValueError("Unknown search mode")
         if source not in {None, "fastmcp", "mcp"}:
-            raise ValueError("Source inconnue")
+            raise ValueError("Unknown documentation source")
         clauses, params = [], []
         if source:
             clauses.append("source=?")
@@ -195,7 +195,7 @@ class Store:
                         raise
                     return self._rank_results(rows, rankings, k, mode, "lexical")
                 if vector.shape != (self.manifest["dimensions"],):
-                    raise ValueError("Dimension d'embedding incompatible avec l'index")
+                    raise ValueError("Embedding dimension is incompatible with the index")
                 ids = np.array(sorted(rows), dtype=np.int64)
                 scores = self.vectors[ids] @ vector
                 rankings.append(ids[np.argsort(-scores, kind="stable")[:100]].tolist())
@@ -205,7 +205,7 @@ class Store:
     def _search_response(results: list[dict], requested: str, effective: str) -> dict:
         """Wrap results with transparent retrieval mode and fallback metadata."""
         fallback = requested != effective
-        warnings = (["Recherche sémantique indisponible ; résultats lexicaux retournés."]
+        warnings = (["Semantic search is unavailable; returning lexical results."]
                     if fallback else [])
         return {"results": results, "requested_mode": requested, "effective_mode": effective,
                 "fallback_used": fallback, "warnings": warnings}
@@ -241,16 +241,16 @@ class Store:
         invalid pagination raise ValueError. This never reconstructs text from vectors.
         """
         if offset < 0 or not 1 <= limit <= 24000:
-            raise ValueError("Pagination invalide")
+            raise ValueError("Invalid pagination")
         doc = next((d for d in self.manifest["documents"] if d["id"] == doc_id), None)
         if not doc:
-            raise ValueError("Document absent du lot local")
+            raise ValueError("Document is missing from the local bundle")
         content = safe_path(self.root, doc["path"]).read_text(encoding="utf-8")
         if section:
             from .chunking import sections
             matches = [text for heading, text in sections(content) if heading == section]
             if not matches:
-                raise ValueError("Section absente")
+                raise ValueError("Section not found")
             content = "\n".join(matches)
         end = min(offset + limit, len(content))
         return {**doc, "section": section, "content": content[offset:end],

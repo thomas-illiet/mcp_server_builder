@@ -21,7 +21,7 @@ def safe_path(root: Path, relative: str) -> Path:
     """
     path = (root / relative).resolve()
     if not path.is_relative_to(root.resolve()) or path == root.resolve():
-        raise ValueError("Chemin en dehors du lot")
+        raise ValueError("Path escapes the bundle")
     return path
 
 

@@ -24,7 +24,7 @@ def build(sources: Path, output: Path, *, embedder=None):
     root = resolve_bundle(sources)
     source_manifest = verify_sources(root)
     if output.exists():
-        raise ValueError("Le dossier d'indexation doit être absent pour éviter tout écrasement")
+        raise ValueError("The index output directory must not exist to prevent overwriting")
     shutil.copytree(root, output)
     if embedder is None:
         from .embedding import Embedder
@@ -57,7 +57,7 @@ def main():
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
     result = build(args.sources, args.output)
-    print(f"Index vérifié : {result['passages']} passages, {result['dimensions']} dimensions", flush=True)
+    print(f"Index verified: {result['passages']} passages, {result['dimensions']} dimensions", flush=True)
 
 
 if __name__ == "__main__":

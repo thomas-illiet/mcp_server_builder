@@ -82,7 +82,7 @@ def test_manifest_records_remote_model_and_rejects_e5(indexed_bundle):
     assert manifest["model"] == {"provider": "openai-compatible", "id": "bge-m3"}
     manifest["model"] = {"id": "intfloat/multilingual-e5-small", "revision": "old"}
     write_json(indexed_bundle / "manifest.json", manifest)
-    with pytest.raises(ValueError, match="incompatible"):
+    with pytest.raises(ValueError, match="model mismatch"):
         verify_bundle(indexed_bundle, model_id="bge-m3")
 
 
@@ -153,5 +153,5 @@ def test_semantic_dimension_must_match_bundle(indexed_bundle):
             return np.ones((len(texts), 3), dtype=np.float32)
 
     store = Store(indexed_bundle, embedder=WrongDimension())
-    with pytest.raises(ValueError, match="Dimension"):
+    with pytest.raises(ValueError, match="dimension"):
         store.search("banana", mode="semantic")

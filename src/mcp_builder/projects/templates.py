@@ -14,8 +14,8 @@ def list_templates() -> list[dict]:
              "parameters": {"name": "Python identifier", "transport": ["http", "stdio"]},
              "fastmcp_version": FASTMCP_VERSION}
             for name, description in (
-                ("minimal", "Un module avec un outil add fonctionnel"),
-                ("structured", "Modules séparés pour tools, resources et prompts"))]
+                ("minimal", "One module with a functional add tool"),
+                ("structured", "Separate modules for tools, resources, and prompts"))]
 
 def generate_project(name: str, template: str = "minimal", transport: str = "http") -> dict:
     """Return deterministic project files without writing to disk or executing code.
@@ -26,9 +26,9 @@ def generate_project(name: str, template: str = "minimal", transport: str = "htt
     the client remains responsible for saving and adapting them.
     """
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name) or keyword.iskeyword(name):
-        raise ValueError("Nom attendu : identifiant Python minuscule, 1 à 64 caractères")
+        raise ValueError("Name must be a lowercase Python identifier, 1 to 64 characters")
     if template not in {"minimal", "structured"} or transport not in {"http", "stdio"}:
-        raise ValueError("Modèle ou transport inconnu")
+        raise ValueError("Unknown template or transport")
     files = {
         "app/__init__.py": '"""Example FastMCP application package."""\n',
         "pyproject.toml": f'''[build-system]
@@ -101,9 +101,9 @@ async def test_resources_and_prompts():
     files["app/server.py"] = server + f'\n\nif __name__ == "__main__":\n    {run}\n'
     files["README.md"] = f'''# {name}
 
-Serveur FastMCP {FASTMCP_VERSION} — transport {transport}.
+FastMCP {FASTMCP_VERSION} server using the {transport} transport.
 
-Consultez [MCP_BUILDER_GUIDE.md](MCP_BUILDER_GUIDE.md) avant d'ajouter un composant.
+Read [MCP_BUILDER_GUIDE.md](MCP_BUILDER_GUIDE.md) before adding a component.
 
 ```bash
 uv lock
@@ -112,18 +112,18 @@ uv run --locked pytest
 uv run --locked python -m app.server
 ```
 
-{"Endpoint : http://localhost:8000/mcp" if transport == "http" else "Configurer le client avec python -m app.server dans le dossier du projet."}
+{"Endpoint: http://localhost:8000/mcp" if transport == "http" else "Configure the client to run python -m app.server from the project directory."}
 
 ```bash
 docker build -t {name} .
 docker run --rm {"-p 8000:8000" if transport == "http" else "-i"} {name}
 ```
 
-Créer puis versionner `uv.lock` avant le build Docker. La résolution initiale
-et l'installation nécessitent l'accès aux dépendances de votre infrastructure.
-Pour un déploiement hors ligne, construire l'image en amont puis la transférer.
-Les exemples sont fonctionnels ; adaptez les outils au besoin métier.
-Documentation : https://gofastmcp.com/servers/server.md
+Create and commit `uv.lock` before the Docker build. Initial dependency resolution
+and installation require access to your dependency infrastructure.
+For an offline deployment, build the image ahead of time and transfer it.
+The examples are functional; adapt the tools to your business requirements.
+Documentation: https://gofastmcp.com/servers/server.md
 '''
     return {"schema_version": SCHEMA_VERSION, "generator_version": BUILDER_VERSION,
             "name": name, "template": template, "transport": transport,
