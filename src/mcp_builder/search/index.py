@@ -5,21 +5,19 @@ from pathlib import Path
 
 import numpy as np
 
-from mcp_builder import FASTMCP_VERSION, MODEL_ID, MODEL_REVISION
-from mcp_builder.config import SOURCE_CONFIG
+from mcp_builder import FASTMCP_VERSION
 from mcp_builder.corpus.files import digest, readable_tree, resolve_bundle, write_json
 from mcp_builder.corpus.manifest import verify_sources
 
 from .store import build_index, verify_bundle
 
 
-def build(sources: Path, output: Path, *, model: Path | None = None, embedder=None, threads=2):
+def build(sources: Path, output: Path, *, embedder=None):
     """Create and verify an indexed bundle from a local source snapshot.
 
-    Documents are copied into a previously absent output folder. When supplied,
-    the separate model is checked against pinned hashes and copied alongside them.
-    The injected embedder is for tests; otherwise the bundled CPU model is
-    loaded offline. Return the indexed manifest, linked to the source manifest
+    Documents are copied into a previously absent output folder. The injected
+    embedder is for tests; otherwise the configured OpenAI-compatible endpoint
+    is used. Return the indexed manifest, linked to the source manifest
     hash. Failures may leave partial output but never modify the sources;
     Docker publishes the layer only after this command succeeds.
     """
@@ -28,22 +26,15 @@ def build(sources: Path, output: Path, *, model: Path | None = None, embedder=No
     if output.exists():
         raise ValueError("Le dossier d'indexation doit être absent pour éviter tout écrasement")
     shutil.copytree(root, output)
-    if model is not None:
-        for name, expected in SOURCE_CONFIG["model"]["files"].items():
-            if digest(model / name) != expected:
-                raise ValueError(f"Modèle corrompu : {name}")
-            target = output / "model" / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(model / name, target)
     if embedder is None:
         from .embedding import Embedder
-        embedder = Embedder(output / "model", threads=threads)
+        embedder = Embedder()
     total = build_index(output, source_manifest["documents"], embedder)
     vectors = np.load(output / "vectors.npy", mmap_mode="r")
     dimensions = vectors.shape[1]
     del vectors
     manifest = {**source_manifest, "kind": "indexed", "passages": total,
-                "model": {"id": MODEL_ID, "revision": MODEL_REVISION},
+                "model": {"provider": "openai-compatible", "id": embedder.model},
                 "dimensions": dimensions, "fastmcp_tested": FASTMCP_VERSION,
                 "source_manifest_sha256": digest(root / "manifest.json")}
     manifest["sources"] = {
@@ -54,7 +45,7 @@ def build(sources: Path, output: Path, *, model: Path | None = None, embedder=No
     manifest["files"] = {p.relative_to(output).as_posix(): digest(p)
                          for p in output.rglob("*") if p.is_file() and p.name != "manifest.json"}
     write_json(output / "manifest.json", manifest)
-    verify_bundle(output)
+    verify_bundle(output, model_id=embedder.model)
     readable_tree(output)
     return manifest
 
@@ -64,10 +55,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--sources", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
-    p.add_argument("--model", type=Path, help="Modèle local téléchargé dans une couche Docker distincte")
-    p.add_argument("--threads", type=int, default=2, choices=range(1, 33))
     args = p.parse_args()
-    result = build(args.sources, args.output, model=args.model, threads=args.threads)
+    result = build(args.sources, args.output)
     print(f"Index vérifié : {result['passages']} passages, {result['dimensions']} dimensions", flush=True)
 
 

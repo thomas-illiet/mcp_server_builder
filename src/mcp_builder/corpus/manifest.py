@@ -2,8 +2,6 @@
 import json
 from pathlib import Path
 
-from mcp_builder import MODEL_ID, MODEL_REVISION
-
 from .files import digest, safe_path
 
 
@@ -17,8 +15,8 @@ def verify_sources(root: Path):
     m = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     if m.get("kind") != "sources" or m.get("schema") != 1 or not m.get("complete"):
         raise ValueError("Source batch is incomplete or incompatible")
-    if "model" in m and m["model"] != {"id": MODEL_ID, "revision": MODEL_REVISION}:
-        raise ValueError("Incompatible model revision")
+    if "model" in m:
+        raise ValueError("Source batches must not contain embedding model metadata")
     if not m["documents"] or not {"fastmcp", "mcp"}.issubset(m["sources"]):
         raise ValueError("Missing official sources")
     required = {"indexes/fastmcp.txt", "indexes/mcp.txt"}

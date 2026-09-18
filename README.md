@@ -1,6 +1,6 @@
-# MCP Builder offline
+# MCP Builder
 
-FastMCP server: hybrid search (FTS5 + multilingual E5), project generation
+FastMCP server: hybrid search (FTS5 + BGE-M3), project generation
 and static validation. HTTP `/mcp`, health `/health`, no authentication.
 
 ## Download and version the documents
@@ -40,6 +40,30 @@ An optional first argument selects another destination, including paths with
 spaces. The build always uses `documentation/` at the repository root.
 `DOCS_CONFIG` lets tests supply local URLs.
 
+## Embedding endpoint
+
+Indexing and semantic searches use an OpenAI-compatible `POST /v1/embeddings`
+endpoint. The default model name is `bge-m3`; override `EMBEDDING_MODEL` when a
+provider exposes the same model under another identifier such as `BAAI/bge-m3`.
+`OPENAI_BASE_URL` must include `/v1`. Write the key to the host file selected by
+`OPENAI_API_KEY_FILE_HOST` (default `.openai_api_key`): Compose mounts it as a
+BuildKit secret while indexing and as a read-only secret file at runtime. The
+file is ignored by Git and Docker. The key, submitted text and returned vectors
+are never logged.
+
+For local Ollama on Docker Desktop:
+
+```bash
+ollama pull bge-m3
+export OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+export EMBEDDING_MODEL=bge-m3
+printf '%s' ollama-local > .openai_api_key
+```
+
+Use `http://127.0.0.1:11434/v1` instead when running the Python commands directly
+on the host. The runtime healthcheck verifies the local bundle only; an endpoint
+failure affects `semantic` and `hybrid`, while `lexical` remains available.
+
 ## Build and start
 
 ```bash
@@ -47,10 +71,9 @@ docker compose build mcp-builder
 docker compose up -d --no-build --pull never mcp-builder
 ```
 
-The connected build installs dependencies with **uv 0.12.8** and `uv.lock`,
-then downloads `intfloat/multilingual-e5-small` at the revision pinned in
-`src/mcp_builder/config/sources.json`. Docker caches this layer.
-The shell script downloads no model and builds no index.
+The connected build installs dependencies with **uv 0.12.8** and `uv.lock`, then
+calls the configured embedding endpoint to build the immutable search index.
+No model weights or Hugging Face runtime are included in the image.
 
 ## Make targets
 
@@ -67,18 +90,18 @@ make restart  # Rebuild then restart
 make logs     # Tail the service logs
 make lint     # Check style with ruff
 make test     # Run the pytest tests
+make test-ollama # Test the real local Ollama bge-m3 endpoint explicitly
 make save     # Export the image to offline-mcp-builder.tar
 make load     # Import offline-mcp-builder.tar
 make clean    # Stop and remove the image
 make all      # Build then start
 ```
 
-A **network-less** Docker step checks the documents and model, then builds SQLite
-and the NumPy vectors. The final image ships everything, runs read-only,
-with no download and no documentation volume. The first computation can
-take several tens of minutes on CPU. An update requires rebuilding then
-recreating the container; the synchronisation alone does not modify the
-running server.
+A Docker build step verifies the documents, calls the embedding endpoint, then
+builds SQLite and the NumPy vectors. The final image ships the documentation and
+index, runs read-only and contains no model weights. Runtime semantic queries
+still call the endpoint. An update requires rebuilding then recreating the
+container; synchronisation alone does not modify the running server.
 
 - MCP client: <http://localhost:8000/mcp>
 - Health: <http://localhost:8000/health>
@@ -89,7 +112,7 @@ final status (done, error or cancelled). `tools/list` requests are also
 logged. Arguments, results and file contents are never logged.
 Repeated `Terminating session: None` messages are hidden at INFO level.
 
-`.env` sets port, listen address, CPU threads and request limits.
+`.env` sets the port, listen address, endpoint, model, concurrency and request limits.
 Offline transfer: `docker save -o offline-mcp-builder.tar offline-mcp-builder:0.1.0`,
 then `docker load -i offline-mcp-builder.tar` on the isolated host.
 
@@ -114,6 +137,8 @@ documentation/    Official documents tracked in Git
 uv sync --locked
 uv run --locked ruff check src scripts tests
 uv run --locked pytest -q
+OPENAI_BASE_URL=http://127.0.0.1:11434/v1 OPENAI_API_KEY=ollama-local \
+  EMBEDDING_MODEL=bge-m3 uv run --locked python scripts/test-ollama-embeddings.py
 # Shell script test on Linux:
 docker compose --profile test build tests
 docker compose --profile test run --rm tests

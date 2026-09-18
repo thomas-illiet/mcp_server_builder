@@ -6,20 +6,29 @@ services:
       dockerfile: Dockerfile
       target: final
       args:
-        INDEX_THREADS: ${INDEX_THREADS:-2}
+        OPENAI_BASE_URL: ${OPENAI_BASE_URL:?OPENAI_BASE_URL is required}
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      secrets:
+        - openai_api_key
     ports:
       - "${MCP_BIND_IP:-0.0.0.0}:${MCP_PORT:-8000}:8000"
     environment:
       DOCS_DIR: /data
       EMBEDDING_CONCURRENCY: ${EMBEDDING_CONCURRENCY:-1}
-      EMBEDDING_THREADS: ${EMBEDDING_THREADS:-2}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_TIMEOUT: ${EMBEDDING_TIMEOUT:-60}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:?OPENAI_BASE_URL is required}
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
       MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-2000000}
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-      HF_HUB_DISABLE_TELEMETRY: "1"
+    secrets:
+      - openai_api_key
     read_only: true
     tmpfs:
       - /tmp:size=256m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     restart: unless-stopped
+
+secrets:
+  openai_api_key:
+    file: ${OPENAI_API_KEY_FILE_HOST:?OPENAI_API_KEY_FILE_HOST is required}
