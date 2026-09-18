@@ -1,58 +1,114 @@
-"""The runtime never resolves a model name over the network."""
+"""OpenAI-compatible dense embeddings without local model files."""
 
 import os
+import time
 from pathlib import Path
 from threading import BoundedSemaphore
+from typing import Callable
 
+import httpx
 import numpy as np
+
+from mcp_builder import DEFAULT_EMBEDDING_MODEL
+
+
+def _secret(value: str | None, file_name: str | None) -> str:
+    """Resolve a direct secret or a secret file without exposing its value."""
+    if value:
+        return value
+    if file_name:
+        try:
+            result = Path(file_name).read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise ValueError("Impossible de lire OPENAI_API_KEY_FILE") from exc
+        if result:
+            return result
+    raise ValueError("OPENAI_API_KEY ou OPENAI_API_KEY_FILE est obligatoire")
 
 
 class Embedder:
-    """Encode E5 queries and passages on CPU using only local model files.
+    """Encode text through an OpenAI-compatible ``/v1/embeddings`` endpoint."""
 
-    Vectors are normalized float32 arrays. A semaphore bounds simultaneous
-    model calls; no model resolution or remote code execution is allowed.
-    """
-    def __init__(self, model_path: Path, concurrency: int = 1, threads: int = 2):
-        """Load model_path locally and configure CPU threads and concurrency.
-
-        The directory must contain a complete SentenceTransformer model.
-        Missing files or invalid runtime settings fail during initialization.
-        """
-        os.environ["HF_HUB_OFFLINE"] = "1"
-        os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-        import torch
-        from sentence_transformers import SentenceTransformer
-
-        if not model_path.is_dir():
-            raise ValueError(f"Modèle local absent : {model_path}")
-        torch.set_num_threads(threads)
-        self.model = SentenceTransformer(
-            str(model_path.resolve()), device="cpu", local_files_only=True,
-            trust_remote_code=False,
+    def __init__(
+        self,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        api_key_file: str | None = None,
+        model: str | None = None,
+        timeout: float | None = None,
+        concurrency: int = 1,
+        client: httpx.Client | None = None,
+        transport: httpx.BaseTransport | None = None,
+        sleeper: Callable[[float], None] = time.sleep,
+    ):
+        """Load configuration locally; endpoint availability is checked only on encode."""
+        base_url = (base_url or os.getenv("OPENAI_BASE_URL", "")).rstrip("/")
+        if not base_url or not base_url.endswith("/v1"):
+            raise ValueError("OPENAI_BASE_URL doit être défini et se terminer par /v1")
+        self.model = model or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+        if not self.model.strip():
+            raise ValueError("EMBEDDING_MODEL ne peut pas être vide")
+        key = _secret(
+            api_key or os.getenv("OPENAI_API_KEY"),
+            api_key_file or os.getenv("OPENAI_API_KEY_FILE"),
         )
-        self.model.max_seq_length = 512
-        self.tokenizer = self.model.tokenizer
+        request_timeout = timeout or float(os.getenv("EMBEDDING_TIMEOUT", "60"))
+        if request_timeout <= 0 or concurrency < 1:
+            raise ValueError("Configuration d'embedding invalide")
+        self.client = client or httpx.Client(
+            base_url=base_url + "/",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=request_timeout,
+            transport=transport,
+        )
         self.gate = BoundedSemaphore(concurrency)
-
-    def token_count(self, text: str) -> int:
-        """Count tokenizer tokens, including special tokens, without encoding a vector."""
-        return len(self.tokenizer.encode(text, add_special_tokens=True))
+        self.sleeper = sleeper
 
     def encode(self, texts: list[str], *, query: bool = False) -> np.ndarray:
-        """Return an (N, dimensions) array of unit vectors for the supplied texts.
+        """Return normalized float32 vectors in the same order as ``texts``.
 
-        query selects the E5 query prefix; passages use the passage prefix.
-        Raise ValueError when a prefixed input exceeds the 512-token limit
-        instead of silently truncating it. Model calls share the semaphore.
+        BGE-M3 uses raw queries and passages, so ``query`` deliberately adds no prefix.
+        Transient endpoint failures are attempted at most three times.
         """
-        prefix = "query: " if query else "passage: "
-        values = [prefix + text for text in texts]
-        if any(self.token_count(text) > 512 for text in values):
-            raise ValueError("Texte trop long pour le modèle (512 tokens maximum).")
+        del query
+        if not texts or any(not isinstance(text, str) or not text for text in texts):
+            raise ValueError("La liste de textes d'embedding est invalide")
+        response = None
         with self.gate:
-            return np.asarray(self.model.encode(
-                values, batch_size=32, normalize_embeddings=True,
-                convert_to_numpy=True, show_progress_bar=False,
-            ), dtype=np.float32)
+            for attempt in range(3):
+                try:
+                    response = self.client.post(
+                        "embeddings", json={"model": self.model, "input": texts}
+                    )
+                except httpx.TransportError as exc:
+                    if attempt == 2:
+                        raise RuntimeError("Endpoint d'embedding indisponible") from exc
+                else:
+                    if response.status_code != 429 and response.status_code < 500:
+                        break
+                    if attempt == 2:
+                        raise RuntimeError(
+                            f"Endpoint d'embedding indisponible (HTTP {response.status_code})"
+                        )
+                self.sleeper(0.25 * (2**attempt))
+        if response is None or response.is_error:
+            status = response.status_code if response is not None else "inconnu"
+            raise RuntimeError(f"Requête d'embedding refusée (HTTP {status})")
+        try:
+            payload = response.json()
+            data = payload["data"]
+            if not isinstance(data, list) or len(data) != len(texts):
+                raise ValueError
+            ordered = sorted(data, key=lambda item: item["index"])
+            if [item["index"] for item in ordered] != list(range(len(texts))):
+                raise ValueError
+            vectors = np.asarray([item["embedding"] for item in ordered], dtype=np.float32)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Réponse d'embedding invalide") from exc
+        if vectors.ndim != 2 or vectors.shape[1] < 1 or not np.isfinite(vectors).all():
+            raise ValueError("Vecteurs d'embedding invalides")
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        if np.any(norms == 0) or not np.isfinite(norms).all():
+            raise ValueError("Vecteurs d'embedding nuls ou invalides")
+        return np.asarray(vectors / norms, dtype=np.float32)

@@ -3,7 +3,7 @@ IMAGE   := offline-mcp-builder:0.1.0
 SERVICE := mcp-builder
 TAR     := offline-mcp-builder.tar
 
-.PHONY: help docs build up down restart logs lint test save load clean all
+.PHONY: help docs build up down restart logs lint test test-ollama save load clean all
 
 help:
 	@echo "Available targets:"
@@ -15,6 +15,7 @@ help:
 	@echo "  logs     - Tail the service logs"
 	@echo "  lint     - Check style with ruff"
 	@echo "  test     - Run the pytest tests"
+	@echo "  test-ollama - Run the explicit local Ollama BGE-M3 integration test"
 	@echo "  save     - Export the image to $(TAR)"
 	@echo "  load     - Import the archive $(TAR)"
 	@echo "  clean    - Stop and remove the image"
@@ -43,6 +44,12 @@ lint:
 
 test:
 	uv run --locked pytest -q
+
+test-ollama:
+	OPENAI_BASE_URL="$${OPENAI_BASE_URL:-http://127.0.0.1:11434/v1}" \
+	OPENAI_API_KEY="$${OPENAI_API_KEY:-ollama-local}" \
+	EMBEDDING_MODEL="$${EMBEDDING_MODEL:-bge-m3}" \
+	uv run --locked python scripts/test-ollama-embeddings.py
 
 save:
 	docker save -o $(TAR) $(IMAGE)

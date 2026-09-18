@@ -6,10 +6,6 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-
 from fastmcp import FastMCP  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 
@@ -36,7 +32,6 @@ def create_server(store=None):
             services.store = await asyncio.to_thread(
                 Store, Path(os.getenv("DOCS_DIR", "/data")),
                 concurrency=max(1, int(os.getenv("EMBEDDING_CONCURRENCY", "1"))),
-                threads=max(1, int(os.getenv("EMBEDDING_THREADS", "2"))),
             )
         logging.getLogger(__name__).info("Local documentation verified and loaded")
         yield

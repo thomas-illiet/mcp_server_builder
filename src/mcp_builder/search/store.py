@@ -1,6 +1,7 @@
 """Immutable, verified documentation bundles and hybrid retrieval."""
 
 import json
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -8,12 +9,12 @@ from pathlib import Path
 
 import numpy as np
 
-from mcp_builder import MODEL_ID, MODEL_REVISION
+from mcp_builder import DEFAULT_EMBEDDING_MODEL
 from mcp_builder.corpus.files import digest, resolve_bundle, safe_path
 
 
-def verify_bundle(root: Path) -> dict:
-    """Return the manifest after checking hashes, model revision and index coherence.
+def verify_bundle(root: Path, model_id: str | None = None) -> dict:
+    """Return the manifest after checking model identity, hashes and index coherence.
 
     SQLite must have contiguous passage IDs and pass its integrity check.
     The NumPy rows must match those IDs and contain finite unit vectors.
@@ -22,13 +23,14 @@ def verify_bundle(root: Path) -> dict:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("schema") != 1 or not manifest.get("complete"):
         raise ValueError("Lot incomplet ou format non supporté")
-    if manifest["model"]["id"] != MODEL_ID or manifest["model"]["revision"] != MODEL_REVISION:
+    expected_model = model_id or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+    if manifest.get("model") != {"provider": "openai-compatible", "id": expected_model}:
         raise ValueError("Modèle du lot incompatible ; reconstruire les index")
     for name, expected in manifest["files"].items():
         path = safe_path(root, name)
         if not path.is_file() or digest(path) != expected:
             raise ValueError(f"Échec d'intégrité : {name}")
-    required = {"index.sqlite", "vectors.npy", "model/config.json"}
+    required = {"index.sqlite", "vectors.npy"}
     required.update(doc["path"] for doc in manifest["documents"])
     if not required.issubset(manifest["files"]):
         raise ValueError("Fichiers requis absents du manifeste")
@@ -77,7 +79,7 @@ def build_index(root: Path, documents: list[dict], embedder) -> int:
         texts = []
         for doc in documents:
             raw = (root / doc["path"]).read_text(encoding="utf-8")
-            for section, content in chunks(raw, embedder.token_count):
+            for section, content in chunks(raw):
                 index = len(texts)
                 db.execute("INSERT INTO passages VALUES (?,?,?,?,?,?,?,?)", (
                     index, doc["id"], doc["title"], section, content,
@@ -89,12 +91,16 @@ def build_index(root: Path, documents: list[dict], embedder) -> int:
         if not texts:
             raise ValueError("Aucun passage documentaire")
         # Bounded batches avoid keeping an additional corpus-sized embedding input in RAM.
+        first_end = min(128, len(texts))
+        first_batch = embedder.encode(texts[:first_end])
         vectors = np.lib.format.open_memmap(
             root / "vectors.npy", mode="w+", dtype=np.float32,
-            shape=(len(texts), embedder.encode(texts[:1]).shape[1]),
+            shape=(len(texts), first_batch.shape[1]),
         )
         print(f"Indexation : {len(texts)} passages", flush=True)
-        for start in range(0, len(texts), 128):
+        vectors[:first_end] = first_batch
+        print(f"Embeddings : {first_end}/{len(texts)}", flush=True)
+        for start in range(first_end, len(texts), 128):
             vectors[start:start + 128] = embedder.encode(texts[start:start + 128])
             print(f"Embeddings : {min(start + 128, len(texts))}/{len(texts)}", flush=True)
         vectors.flush()
@@ -113,18 +119,18 @@ class Store:
     Vectors are memory-mapped read-only. Each operation opens its own SQLite
     connection so HTTP worker threads do not share a mutable connection.
     """
-    def __init__(self, root: Path, embedder=None, *, concurrency: int = 1, threads: int = 2):
-        """Verify root and load its read-only vectors and local model.
+    def __init__(self, root: Path, embedder=None, *, concurrency: int = 1):
+        """Verify root and load its vectors and configured remote embedder.
 
-        An injected embedder supports deterministic tests without model downloads.
-        The concurrency and threads options apply when constructing the real model.
+        An injected embedder supports deterministic tests without network calls.
         """
         self.root = resolve_bundle(root)
-        self.manifest = verify_bundle(self.root)
-        self.vectors = np.load(self.root / "vectors.npy", mmap_mode="r", allow_pickle=False)
         if embedder is None:
             from .embedding import Embedder
-            embedder = Embedder(self.root / "model", concurrency, threads)
+            embedder = Embedder(concurrency=concurrency)
+        model_id = getattr(embedder, "model", None)
+        self.manifest = verify_bundle(self.root, model_id=model_id)
+        self.vectors = np.load(self.root / "vectors.npy", mmap_mode="r", allow_pickle=False)
         self.embedder = embedder
 
     @contextmanager
@@ -147,7 +153,7 @@ class Store:
         snippet and official reference. Invalid inputs raise ValueError; valid
         filters with no matching passages return an empty list.
         """
-        if not query.strip() or len(query) > 4000 or not 1 <= k <= 20:
+        if not query.strip() or len(query.encode("utf-8")) > 7800 or not 1 <= k <= 20:
             raise ValueError("Question vide/trop longue ou k hors de [1,20]")
         if mode not in {"hybrid", "lexical", "semantic"}:
             raise ValueError("Mode inconnu")
@@ -182,6 +188,8 @@ class Store:
                 rankings.append(lexical)
             if mode != "lexical":
                 vector = self.embedder.encode([query], query=True)[0]
+                if vector.shape != (self.manifest["dimensions"],):
+                    raise ValueError("Dimension d'embedding incompatible avec l'index")
                 ids = np.array(sorted(rows), dtype=np.int64)
                 scores = self.vectors[ids] @ vector
                 rankings.append(ids[np.argsort(-scores, kind="stable")[:100]].tolist())

@@ -9,5 +9,6 @@ dist/
 data/
 models/
 artifacts/
+.openai_api_key
 *.tar
 documentation/

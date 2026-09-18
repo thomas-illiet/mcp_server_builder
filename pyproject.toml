@@ -8,8 +8,7 @@ version = "0.1.0"
 description = "Offline FastMCP documentation and project builder"
 requires-python = ">=3.12"
 dependencies = [
-  "fastmcp==4.0.3", "numpy==2.5.3",
-  "sentence-transformers==6.0.1", "httpx==0.28.1", "torch==2.14.0",
+  "fastmcp==4.0.3", "numpy==2.5.3", "httpx==0.28.1", "cryptography==46.0.3",
 ]
 
 [dependency-groups]
@@ -18,14 +17,6 @@ dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.16.6"]
 [project.scripts]
 mcp-builder = "mcp_builder.server:main"
 index-mcp-docs = "mcp_builder.search.index:main"
-
-[tool.uv.sources]
-torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_builder"]
