@@ -5,7 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 FROM base AS dependencies
 COPY --from=ghcr.io/astral-sh/uv:0.12.8 /uv /uvx /usr/local/bin/
-ENV UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never PATH=/app/.venv/bin:$PATH
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cargo libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+ENV UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_NO_BINARY_PACKAGE=cryptography \
+    PATH=/app/.venv/bin:$PATH
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-install-project
 
