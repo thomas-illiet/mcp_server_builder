@@ -76,6 +76,17 @@ def indexed_bundle(tmp_path):
     return output
 
 
+@pytest.fixture
+def lexical_bundle(tmp_path):
+    """Build a complete FTS5 bundle without endpoint configuration or vectors."""
+    sources = tmp_path / "sources"
+    output = tmp_path / "indexed"
+    sources.mkdir()
+    source_bundle(sources)
+    build(sources, output, semantic=False)
+    return output
+
+
 def test_manifest_records_remote_model_and_rejects_e5(indexed_bundle):
     """Only the exact OpenAI-compatible model contract is accepted."""
     manifest = verify_bundle(indexed_bundle, model_id="bge-m3")
@@ -92,6 +103,29 @@ def test_lexical_search_never_calls_embedder(indexed_bundle):
     response = store.search("banana", mode="lexical")
     assert response["results"][0]["doc_id"] == "banana"
     assert response["fallback_used"] is False
+
+
+def test_lexical_only_bundle_starts_without_embedding_configuration(lexical_bundle):
+    """The default local bundle needs neither endpoint, secret, model, nor vectors."""
+    store = Store(lexical_bundle)
+    manifest = verify_bundle(lexical_bundle)
+    assert manifest["search"] == {"lexical": True, "semantic": False}
+    assert manifest["model"] is None
+    assert not (lexical_bundle / "vectors.npy").exists()
+    response = store.search("banana", mode="hybrid")
+    assert response["results"][0]["doc_id"] == "banana"
+    assert response["effective_mode"] == "lexical"
+    assert response["fallback_used"] is True
+    status = store.status()
+    assert status["status"] == "ok"
+    assert status["search"]["semantic"]["state"] == "disabled"
+
+
+def test_lexical_only_bundle_rejects_semantic_mode(lexical_bundle):
+    """A semantic-only request fails clearly instead of pretending it ran."""
+    store = Store(lexical_bundle)
+    with pytest.raises(EmbeddingUnavailableError, match="not configured"):
+        store.search("banana", mode="semantic")
 
 
 def test_hybrid_falls_back_only_for_endpoint_unavailability(indexed_bundle):

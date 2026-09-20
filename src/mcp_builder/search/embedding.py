@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from threading import BoundedSemaphore
 from typing import Callable
+from urllib.parse import urlsplit
 
 import httpx
 import numpy as np
@@ -48,8 +49,19 @@ class Embedder:
     ):
         """Load configuration locally; endpoint availability is checked only on encode."""
         base_url = (base_url or os.getenv("OPENAI_BASE_URL", "")).rstrip("/")
-        if not base_url or not base_url.endswith("/v1"):
-            raise ValueError("OPENAI_BASE_URL must be set and end with /v1")
+        parsed = urlsplit(base_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or not parsed.path.endswith("/v1")
+        ):
+            raise ValueError(
+                "OPENAI_BASE_URL must be an HTTP(S) /v1 URL without credentials"
+            )
         self.model = model or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
         if not self.model.strip():
             raise ValueError("EMBEDDING_MODEL cannot be empty")

@@ -21,13 +21,18 @@ COPY src/mcp_builder/search /app/src/mcp_builder/search
 ENV PYTHONPATH=/app/src
 
 FROM indexer AS documents
-ARG OPENAI_BASE_URL
+ARG ENABLE_SEMANTIC=0
+ARG OPENAI_BASE_URL=""
 ARG EMBEDDING_MODEL=bge-m3
 COPY documentation /sources
-RUN --mount=type=secret,id=openai_api_key,required=true \
-    OPENAI_API_KEY_FILE=/run/secrets/openai_api_key \
-    OPENAI_BASE_URL="$OPENAI_BASE_URL" EMBEDDING_MODEL="$EMBEDDING_MODEL" \
-    python -m mcp_builder.search.index --sources /sources --output /indexed
+RUN --mount=type=secret,id=openai_api_key,required=false \
+    if [ "$ENABLE_SEMANTIC" = "1" ]; then \
+        OPENAI_API_KEY_FILE=/run/secrets/openai_api_key \
+        OPENAI_BASE_URL="$OPENAI_BASE_URL" EMBEDDING_MODEL="$EMBEDDING_MODEL" \
+        python -m mcp_builder.search.index --sources /sources --output /indexed; \
+    else \
+        python -m mcp_builder.search.index --sources /sources --output /indexed --lexical-only; \
+    fi
 
 FROM dependencies AS application
 COPY src ./src
@@ -40,7 +45,7 @@ RUN mkdir -p /run/secrets && touch /run/secrets/openai_api_key \
     && chown -R 10001:10001 /run/secrets
 ENV PATH=/app/.venv/bin:$PATH DOCS_DIR=/data PORT=8000 EMBEDDING_CONCURRENCY=1 \
     EMBEDDING_MODEL=bge-m3 EMBEDDING_TIMEOUT=60 OPENAI_API_KEY_FILE=/run/secrets/openai_api_key \
-    MAX_REQUEST_BYTES=2000000 HOME=/tmp
+    MAX_REQUEST_BYTES=2000000 MCP_LISTEN_HOST=0.0.0.0 MCP_PUBLIC_BIND_IP=127.0.0.1 HOME=/tmp
 USER 10001:10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s \
@@ -54,6 +59,9 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked
 COPY tests ./tests
 COPY scripts ./scripts
+COPY documentation ./documentation
+COPY integrations ./integrations
+COPY compose.yaml compose.semantic.yaml ./
 CMD ["uv", "run", "--locked", "--no-sync", "pytest", "-q", "-p", "no:cacheprovider"]
 
 FROM runtime AS final

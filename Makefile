@@ -1,5 +1,5 @@
 # MCP Builder offline — build, docs and development targets.
-IMAGE   := offline-mcp-builder:0.1.0
+IMAGE   := offline-mcp-builder:0.2.0
 SERVICE := mcp-builder
 TAR     := offline-mcp-builder.tar
 

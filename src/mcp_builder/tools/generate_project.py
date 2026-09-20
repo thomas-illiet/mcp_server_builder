@@ -13,7 +13,7 @@ def register(mcp, services: Services):
     @mcp.tool
     def generate_project(
         name: Annotated[str, Field(min_length=1, max_length=64)],
-        template: Literal["minimal", "structured"] = "minimal",
+        template: Literal["minimal", "structured"] = "structured",
         transport: Literal["http", "stdio"] = "http",
     ) -> dict:
         """Return project files for the client to write. Does not create server-side files."""

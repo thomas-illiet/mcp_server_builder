@@ -1,0 +1,35 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# director
+
+# `fastmcp.utilities.openapi.director`
+
+Request director using openapi-core for stateless HTTP request building.
+
+## Classes
+
+### `RequestDirector` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/utilities/openapi/director.py#L44" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Builds httpx2.Request objects from HTTPRoute and arguments using openapi-core.
+
+**Methods:**
+
+#### `build` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/utilities/openapi/director.py#L51" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+build(self, route: HTTPRoute, flat_args: dict[str, Any], base_url: str = 'http://localhost') -> httpx2.Request
+```
+
+Constructs a final httpx2.Request object, handling all OpenAPI serialization.
+
+**Args:**
+
+* `route`: HTTPRoute containing OpenAPI operation details
+* `flat_args`: Flattened arguments from LLM (may include suffixed parameters)
+* `base_url`: Base URL for the request
+
+**Returns:**
+
+* httpx2.Request: Properly formatted HTTP request

@@ -1,0 +1,21 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# roots
+
+# `fastmcp.client.roots`
+
+## Functions
+
+### `convert_roots_list` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/client/roots.py#L20" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+convert_roots_list(roots: RootsList) -> list[mcp_types.Root]
+```
+
+### `create_roots_callback` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/client/roots.py#L34" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+create_roots_callback(handler: RootsList | RootsHandler) -> ListRootsFnT
+```

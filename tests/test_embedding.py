@@ -82,7 +82,11 @@ def test_transport_failure_is_bounded():
 
 def test_requires_v1_url_and_secret(tmp_path):
     """Configuration fails locally without a standard base URL or credential."""
-    with pytest.raises(ValueError, match="end with /v1"):
+    with pytest.raises(ValueError, match="/v1 URL"):
         Embedder(base_url="http://example.test", api_key="key")
+    with pytest.raises(ValueError, match="without credentials"):
+        Embedder(base_url="http://user:password@example.test/v1", api_key="key")
+    with pytest.raises(ValueError, match="without credentials"):
+        Embedder(base_url="http://example.test/v1?token=secret", api_key="key")
     with pytest.raises(ValueError, match="OPENAI_API_KEY_FILE"):
         Embedder(base_url="http://example.test/v1", api_key_file=tmp_path / "missing")

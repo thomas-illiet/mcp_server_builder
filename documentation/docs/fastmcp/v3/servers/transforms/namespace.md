@@ -1,0 +1,68 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Namespace Transform
+
+> Prefix component names to prevent conflicts
+
+export const VersionBadge = ({version}) => {
+  return <Badge stroke size="lg" icon="gift" iconType="regular" className="version-badge">
+            New in version <code>{version}</code>
+        </Badge>;
+};
+
+<VersionBadge version="3.0.0" />
+
+The `Namespace` transform prefixes all component names, preventing conflicts when composing multiple servers.
+
+Tools and prompts receive an underscore-separated prefix. Resources and templates receive a path-segment prefix in their URIs.
+
+| Component | Original      | With `Namespace("api")` |
+| --------- | ------------- | ----------------------- |
+| Tool      | `my_tool`     | `api_my_tool`           |
+| Prompt    | `my_prompt`   | `api_my_prompt`         |
+| Resource  | `data://info` | `data://api/info`       |
+| Template  | `data://{id}` | `data://api/{id}`       |
+
+The most common use is through the `mount()` method's `namespace` parameter.
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from fastmcp import FastMCP
+
+weather = FastMCP("Weather")
+calendar = FastMCP("Calendar")
+
+@weather.tool
+def get_data() -> str:
+    return "Weather data"
+
+@calendar.tool
+def get_data() -> str:
+    return "Calendar data"
+
+# Without namespacing, these would conflict
+main = FastMCP("Main")
+main.mount(weather, namespace="weather")
+main.mount(calendar, namespace="calendar")
+
+# Clients see: weather_get_data, calendar_get_data
+```
+
+You can also apply namespacing directly using the `Namespace` transform.
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from fastmcp import FastMCP
+from fastmcp.server.transforms import Namespace
+
+mcp = FastMCP("Server")
+
+@mcp.tool
+def greet(name: str) -> str:
+    return f"Hello, {name}!"
+
+# Namespace all components
+mcp.add_transform(Namespace("api"))
+
+# Tool is now: api_greet
+```

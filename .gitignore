@@ -10,5 +10,5 @@ data/
 models/
 artifacts/
 .openai_api_key
+.env
 *.tar
-documentation/

@@ -1,4 +1,10 @@
 """Public project-generation services, independent of MCP transport."""
+from .companion import assess_project as assess_project
+from .companion import assess_readiness as assess_readiness
+from .companion import generate_from_blueprint as generate_from_blueprint
+from .companion import get_design_schema as get_design_schema
+from .companion import get_verification_plan as get_verification_plan
+from .companion import validate_blueprint as validate_blueprint
 from .components import generate_component_test as generate_component_test
 from .components import generate_prompt as generate_prompt
 from .components import generate_resource as generate_resource

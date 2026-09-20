@@ -1,0 +1,137 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# code_mode
+
+# `fastmcp.experimental.transforms.code_mode`
+
+## Classes
+
+### `SandboxProvider` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L78" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Interface for executing LLM-generated Python code in a sandbox.
+
+WARNING: The `code` parameter passed to `run` contains untrusted,
+LLM-generated Python.  Implementations MUST execute it in an isolated
+sandbox — never with plain `exec()`.  Use `MontySandboxProvider`
+(backed by `pydantic-monty`) for production workloads.
+
+**Methods:**
+
+#### `run` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L87" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+run(self, code: str) -> Any
+```
+
+### `MontySandboxProvider` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L115" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Sandbox provider backed by `pydantic-monty`.
+
+**Args:**
+
+* `limits`: Resource limits for sandbox execution. Supported keys:
+  `max_duration_secs` (float), `max_memory` (int),
+  `max_recursion_depth` (int), and `gc_interval` (int).
+  Time, memory, and GC limits are optional; omit a key to disable
+  it. Recursion depth defaults to Monty's standard maximum of 1,000.
+  Unsupported keys raise `ValueError` rather than being silently
+  ignored.
+
+When the argument is omitted entirely, a conservative baseline
+is applied (`max_duration_secs=30`, `max_memory=100 MB`) so
+the out-of-box configuration is not unbounded. Pass
+`limits=None` to disable configurable time, memory, and GC
+limits, or a dict to set your own. Monty's standard recursion
+limit still applies.
+
+**Methods:**
+
+#### `run` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L147" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+run(self, code: str) -> Any
+```
+
+### `Search` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L288" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Discovery tool factory that searches the catalog by query.
+
+**Args:**
+
+* `search_fn`: Async callable `(tools, query) -> matching_tools`.
+  Defaults to BM25 ranking.
+* `name`: Name of the synthetic tool exposed to the LLM.
+* `default_detail`: Default detail level for search results.
+  `"brief"` returns tool names and descriptions only.
+  `"detailed"` returns compact markdown with parameter schemas.
+  `"full"` returns complete JSON tool definitions.
+* `default_limit`: Maximum number of results to return.
+  The LLM can override this per call.  `None` means no limit.
+
+### `GetSchemas` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L370" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Discovery tool factory that returns schemas for tools by name.
+
+**Args:**
+
+* `name`: Name of the synthetic tool exposed to the LLM.
+* `default_detail`: Default detail level for schema results.
+  `"brief"` returns tool names and descriptions only.
+  `"detailed"` renders compact markdown with parameter names,
+  types, and required markers.
+  `"full"` returns the complete JSON schema.
+
+### `GetTags` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L431" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Discovery tool factory that lists tool tags from the catalog.
+
+Reads `tool.tags` from the catalog and groups tools by tag. Tools
+without tags appear under `"untagged"`.
+
+**Args:**
+
+* `name`: Name of the synthetic tool exposed to the LLM.
+* `default_detail`: Default detail level.
+  `"brief"` returns tag names with tool counts.
+  `"full"` lists all tools under each tag.
+
+### `ListTools` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L498" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Discovery tool factory that lists all tools in the catalog.
+
+**Args:**
+
+* `name`: Name of the synthetic tool exposed to the LLM.
+* `default_detail`: Default detail level.
+  `"brief"` returns tool names and one-line descriptions.
+  `"detailed"` returns compact markdown with parameter schemas.
+  `"full"` returns the complete JSON schema.
+
+### `CodeMode` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L547" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Transform that collapses all tools into discovery + execute meta-tools.
+
+Discovery tools are composable via the `discovery_tools` parameter.
+Each is a callable that receives catalog access and returns a `Tool`.
+By default, `Search` and `GetSchemas` are included for
+progressive disclosure: search finds candidates, get\_schema retrieves
+parameter details, and execute runs code.
+
+The `execute` tool is always present and provides a sandboxed Python
+environment with `call_tool(name, params)` in scope.
+
+**Methods:**
+
+#### `transform_tools` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L599" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+transform_tools(self, tools: Sequence[Tool]) -> Sequence[Tool]
+```
+
+#### `get_tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/experimental/transforms/code_mode.py#L602" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+get_tool(self, name: str, call_next: GetToolNext) -> Tool | None
+```

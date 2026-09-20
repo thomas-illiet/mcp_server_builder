@@ -1,0 +1,21 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# function_parsing
+
+# `fastmcp.tools.function_parsing`
+
+Function introspection and schema generation for FastMCP tools.
+
+## Classes
+
+### `ParsedFunction` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/tools/function_parsing.py#L268" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+**Methods:**
+
+#### `from_function` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/tools/function_parsing.py#L277" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from_function(cls, fn: Callable[..., Any], validate: bool = True, wrap_non_object_output_schema: bool = True) -> ParsedFunction
+```

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "mcp-companion",
+  "mcp": {
+    "timeout": {
+      "startup": 30000,
+      "catalog": 30000,
+      "execution": 600000
+    },
+    "servers": {
+      "mcp_builder": {
+        "type": "remote",
+        "url": "http://127.0.0.1:8000/mcp",
+        "oauth": false,
+        "protocol": "auto",
+        "codemode": true
+      }
+    }
+  }
+}

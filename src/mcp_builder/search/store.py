@@ -24,14 +24,24 @@ def verify_bundle(root: Path, model_id: str | None = None) -> dict:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("schema") != 1 or not manifest.get("complete"):
         raise ValueError("Incomplete bundle or unsupported format")
-    expected_model = model_id or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
-    if manifest.get("model") != {"provider": "openai-compatible", "id": expected_model}:
-        raise ValueError("Bundle model mismatch; rebuild the indexes")
+    search = manifest.get("search", {"lexical": True, "semantic": True})
+    if search.get("lexical") is not True or not isinstance(search.get("semantic"), bool):
+        raise ValueError("Bundle search capabilities are invalid")
+    if search["semantic"]:
+        expected_model = model_id or os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+        if manifest.get("model") != {"provider": "openai-compatible", "id": expected_model}:
+            raise ValueError("Bundle model mismatch; rebuild the indexes")
+        if not isinstance(manifest.get("dimensions"), int) or manifest["dimensions"] < 1:
+            raise ValueError("Bundle embedding dimensions are invalid")
+    elif manifest.get("model") is not None or manifest.get("dimensions") != 0:
+        raise ValueError("Lexical-only bundles cannot contain model metadata")
     for name, expected in manifest["files"].items():
         path = safe_path(root, name)
         if not path.is_file() or digest(path) != expected:
             raise ValueError(f"Integrity check failed: {name}")
-    required = {"index.sqlite", "vectors.npy"}
+    required = {"index.sqlite"}
+    if search["semantic"]:
+        required.add("vectors.npy")
     required.update(doc["path"] for doc in manifest["documents"])
     if not required.issubset(manifest["files"]):
         raise ValueError("Required files are missing from the manifest")
@@ -42,23 +52,28 @@ def verify_bundle(root: Path, model_id: str | None = None) -> dict:
             raise ValueError("Invalid SQLite index")
         if total < 1 or first != 0 or last != total - 1:
             raise ValueError("Inconsistent passage identifiers")
+        if total != manifest.get("passages"):
+            raise ValueError("Passage count does not match the manifest")
     finally:
         db.close()
-    vectors = np.load(root / "vectors.npy", mmap_mode="r", allow_pickle=False)
-    try:
-        if vectors.shape != (total, manifest["dimensions"]) or total != manifest["passages"]:
-            raise ValueError("Index and vectors are inconsistent")
-        if not np.isfinite(vectors).all() or not np.allclose(
-            np.linalg.norm(vectors, axis=1), 1, atol=1e-4
-        ):
-            raise ValueError("Vectors are not normalized or are invalid")
-    finally:
-        del vectors
+    if search["semantic"]:
+        vectors = np.load(root / "vectors.npy", mmap_mode="r", allow_pickle=False)
+        try:
+            if vectors.shape != (total, manifest["dimensions"]):
+                raise ValueError("Index and vectors are inconsistent")
+            if not np.isfinite(vectors).all() or not np.allclose(
+                np.linalg.norm(vectors, axis=1), 1, atol=1e-4
+            ):
+                raise ValueError("Vectors are not normalized or are invalid")
+        finally:
+            del vectors
+    elif "vectors.npy" in manifest["files"]:
+        raise ValueError("Lexical-only bundles cannot contain vectors")
     return manifest
 
 
-def build_index(root: Path, documents: list[dict], embedder) -> int:
-    """Write FTS5 passages and normalized vectors, returning the passage count.
+def build_index(root: Path, documents: list[dict], embedder=None) -> int:
+    """Write FTS5 passages and optional normalized vectors.
 
     The caller provides an empty output area and a compatible embedder.
     Passage IDs are zero-based vector row numbers; FTS row IDs match them.
@@ -91,21 +106,25 @@ def build_index(root: Path, documents: list[dict], embedder) -> int:
                 texts.append(content)
         if not texts:
             raise ValueError("No documentation passages found")
-        # Bounded batches avoid keeping an additional corpus-sized embedding input in RAM.
-        first_end = min(128, len(texts))
-        first_batch = embedder.encode(texts[:first_end])
-        vectors = np.lib.format.open_memmap(
-            root / "vectors.npy", mode="w+", dtype=np.float32,
-            shape=(len(texts), first_batch.shape[1]),
-        )
         print(f"Indexing: {len(texts)} passages", flush=True)
-        vectors[:first_end] = first_batch
-        print(f"Embeddings: {first_end}/{len(texts)}", flush=True)
-        for start in range(first_end, len(texts), 128):
-            vectors[start:start + 128] = embedder.encode(texts[start:start + 128])
-            print(f"Embeddings: {min(start + 128, len(texts))}/{len(texts)}", flush=True)
-        vectors.flush()
-        del vectors
+        if embedder is not None:
+            # Bounded batches avoid keeping an additional corpus-sized input in RAM.
+            first_end = min(128, len(texts))
+            first_batch = embedder.encode(texts[:first_end])
+            vectors = np.lib.format.open_memmap(
+                root / "vectors.npy", mode="w+", dtype=np.float32,
+                shape=(len(texts), first_batch.shape[1]),
+            )
+            vectors[:first_end] = first_batch
+            print(f"Embeddings: {first_end}/{len(texts)}", flush=True)
+            for start in range(first_end, len(texts), 128):
+                vectors[start:start + 128] = embedder.encode(texts[start:start + 128])
+                print(
+                    f"Embeddings: {min(start + 128, len(texts))}/{len(texts)}",
+                    flush=True,
+                )
+            vectors.flush()
+            del vectors
         db.commit()
         if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ValueError("Invalid SQLite index")
@@ -126,13 +145,20 @@ class Store:
         An injected embedder supports deterministic tests without network calls.
         """
         self.root = resolve_bundle(root)
-        if embedder is None:
+        candidate = json.loads((self.root / "manifest.json").read_text(encoding="utf-8"))
+        semantic_enabled = candidate.get("search", {}).get("semantic", True)
+        if semantic_enabled and embedder is None:
             from .embedding import Embedder
             embedder = Embedder(concurrency=concurrency)
-        model_id = getattr(embedder, "model", None)
+        model_id = getattr(embedder, "model", None) if semantic_enabled else None
         self.manifest = verify_bundle(self.root, model_id=model_id)
-        self.vectors = np.load(self.root / "vectors.npy", mmap_mode="r", allow_pickle=False)
-        self.embedder = embedder
+        self.semantic_enabled = self.manifest.get("search", {}).get("semantic", True)
+        self.vectors = (
+            np.load(self.root / "vectors.npy", mmap_mode="r", allow_pickle=False)
+            if self.semantic_enabled else None
+        )
+        self.embedder = embedder if self.semantic_enabled else None
+        self.semantic_state = "unknown" if self.semantic_enabled else "disabled"
 
     @contextmanager
     def connect(self):
@@ -188,12 +214,20 @@ class Store:
                     )]
                 rankings.append(lexical)
             if mode != "lexical":
+                if not self.semantic_enabled:
+                    if mode == "semantic":
+                        raise EmbeddingUnavailableError(
+                            "Semantic search is not configured for this bundle"
+                        )
+                    return self._rank_results(rows, rankings, k, mode, "lexical")
                 try:
                     vector = self.embedder.encode([query], query=True)[0]
                 except EmbeddingUnavailableError:
+                    self.semantic_state = "unavailable"
                     if mode == "semantic":
                         raise
                     return self._rank_results(rows, rankings, k, mode, "lexical")
+                self.semantic_state = "available"
                 if vector.shape != (self.manifest["dimensions"],):
                     raise ValueError("Embedding dimension is incompatible with the index")
                 ids = np.array(sorted(rows), dtype=np.int64)
@@ -205,7 +239,7 @@ class Store:
     def _search_response(results: list[dict], requested: str, effective: str) -> dict:
         """Wrap results with transparent retrieval mode and fallback metadata."""
         fallback = requested != effective
-        warnings = (["Semantic search is unavailable; returning lexical results."]
+        warnings = (["Semantic search is disabled or unavailable; returning lexical results."]
                     if fallback else [])
         return {"results": results, "requested_mode": requested, "effective_mode": effective,
                 "fallback_used": fallback, "warnings": warnings}
@@ -260,16 +294,19 @@ class Store:
         """Return corpus/model metadata and the integrity status checked at startup."""
         m = self.manifest
         semantic = {
-            "configured": True,
-            "provider": m["model"]["provider"],
-            "model": m["model"]["id"],
+            "configured": self.semantic_enabled,
+            "available": self.semantic_state == "available",
+            "state": self.semantic_state,
+            "provider": m["model"]["provider"] if self.semantic_enabled else None,
+            "model": m["model"]["id"] if self.semantic_enabled else None,
             "endpoint": getattr(self.embedder, "base_url", None),
             "timeout_seconds": getattr(self.embedder, "timeout", None),
-            "network_checked": False,
+            "network_checked": self.semantic_state in {"available", "unavailable"},
         }
         return {key: m[key] for key in (
             "created_at", "model", "fastmcp_tested", "passages", "dimensions", "sources"
         )} | {"schema_version": SCHEMA_VERSION, "server_version": BUILDER_VERSION,
              "documents": len(m["documents"]), "integrity": "verified_at_startup",
+             "status": "degraded" if self.semantic_state == "unavailable" else "ok",
              "search": {"lexical": {"available": True, "network_required": False},
                         "semantic": semantic}}

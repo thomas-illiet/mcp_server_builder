@@ -6,7 +6,7 @@ from typing import Annotated
 from pydantic import Field
 
 from mcp_builder.projects import inspect_project as inspect_files
-from mcp_builder.projects.schemas import InspectionResult, ProjectFile
+from mcp_builder.projects.schemas import InspectionResult, ProjectFile, ValidationProfile
 
 from .services import Services
 
@@ -18,7 +18,8 @@ def register(mcp, services: Services):
     @mcp.tool
     async def inspect_project(
         files: Annotated[list[ProjectFile], Field(min_length=1, max_length=100)],
+        profile: ValidationProfile = "recommended",
     ) -> InspectionResult:
         """Map an existing FastMCP project statically without importing or executing it."""
         payload = [item.model_dump() for item in files]
-        return await asyncio.to_thread(inspect_files, payload)
+        return await asyncio.to_thread(inspect_files, payload, profile)

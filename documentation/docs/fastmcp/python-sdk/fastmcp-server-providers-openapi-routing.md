@@ -1,0 +1,19 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# routing
+
+# `fastmcp.server.providers.openapi.routing`
+
+Route mapping logic for OpenAPI operations.
+
+## Classes
+
+### `MCPType` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/providers/openapi/routing.py#L42" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Type of FastMCP component to create from a route.
+
+### `RouteMap` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/providers/openapi/routing.py#L59" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Mapping configuration for HTTP routes to FastMCP component types.

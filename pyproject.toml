@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "offline-mcp-builder"
-version = "0.1.0"
+version = "0.2.0"
 description = "Offline FastMCP documentation and project builder"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,7 +15,8 @@ dependencies = [
 dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.16.6"]
 
 [project.scripts]
-mcp-builder = "mcp_builder.server:main"
+mcp-builder = "mcp_builder.doctor:entrypoint"
+mcp-builder-doctor = "mcp_builder.doctor:main"
 index-mcp-docs = "mcp_builder.search.index:main"
 
 [tool.hatch.build.targets.wheel]

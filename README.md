@@ -1,11 +1,41 @@
 # MCP Builder
 
-FastMCP server: hybrid search (FTS5 + BGE-M3), project generation
-and static validation. HTTP `/mcp`, health `/health`, no authentication.
+MCP Builder is a deterministic FastMCP companion for OpenCode. OpenCode owns the
+conversation, repository edits, and command execution; MCP Builder supplies verified
+official documentation, bounded design contracts, generated files, static assessment,
+and explicit readiness criteria. It does not contain a second LLM, retain project
+sessions, write submitted projects, or execute their code.
 
-## Download and version the documents
+The initial target is FastMCP Python with OpenCode 1.18.31. The default deployment is
+lexical-only, works without an embedding endpoint, and publishes HTTP only on
+`127.0.0.1`.
 
-Prerequisites: **Bash, curl, jq and sha256sum** (Linux or Git Bash on Windows).
+## Companion workflow
+
+The default `companion` tool profile exposes the documentation tools and six high-level
+facades:
+
+1. `get_design_schema` returns the bounded `ProjectBlueprint` contract.
+2. `validate_blueprint` identifies missing decisions, risks, and references.
+3. `generate_from_blueprint` returns files and tests in memory; OpenCode writes them.
+4. `assess_project` combines inspection, validation, and security findings.
+5. `get_verification_plan` tells OpenCode which checks it must execute.
+6. `assess_readiness` returns `ready`, `incomplete`, or `blocked` from the final files
+   and the reported check outcomes.
+
+Every facade uses the same versioned fields: `status`, `blocking_issues`, `warnings`,
+`evidence`, `references`, and `next_actions`. Readiness requires real business behavior,
+no remaining `TODO`, targeted tests, successful lint/tests, MCP discovery, and real
+invocation evidence.
+
+Set `MCP_BUILDER_TOOL_PROFILE=advanced` only when direct access to the lower-level
+template, component, inspection, patch, and validation tools is useful. Patch proposals
+never modify files and report a conflict instead of replacing existing business code
+with a generated skeleton.
+
+## Download and version the documentation
+
+Prerequisites are Bash, curl, jq, and sha256sum (Linux or Git Bash on Windows).
 
 ```bash
 bash scripts/sync-docs.sh
@@ -14,146 +44,161 @@ git diff --cached --stat
 git commit -m "Update FastMCP and MCP documentation"
 ```
 
-The script works from any directory and downloads only the official `llms.txt`
-files and the Markdown they reference:
+The human-readable script works from any directory. It deletes `documentation/`, then
+downloads only official Markdown referenced by the FastMCP and MCP `llms.txt` indexes:
 
 ```text
 documentation/
-  indexes/fastmcp.txt    Official FastMCP index
-  indexes/mcp.txt        Official MCP index
-  docs/fastmcp/…         Pages with their official paths
-  docs/mcp/…             Protocol pages and versions
-  manifest.json         URLs, titles, versions, date and SHA-256
+  indexes/fastmcp.txt
+  indexes/mcp.txt
+  docs/fastmcp/...
+  docs/mcp/...
+  manifest.json
 ```
 
-This folder is intended for Git. `.gitattributes` preserves the downloaded bytes,
-including on Windows checkout. Review the changes before committing.
-The documents keep the rights and licenses of their publishers.
+The directory is intentionally tracked by Git. `.gitattributes` prevents Windows
+checkout from rewriting bytes covered by the upstream SHA-256 manifest. There is no
+lock, staging directory, or backup. A failed run can leave a partial directory without
+a complete manifest; rerun the script to reset it. Do not run two synchronizations or
+edit the script while it is running.
 
-Each run deletes the destination folder entirely, then downloads the
-documents again, sequentially. No lock, temporary folder or backup is kept.
-On error, partial downloads remain without a complete manifest; rerun the
-script to start over from scratch. Don't run two synchronisations
-simultaneously or synchronise during a build.
+## Start the local service
 
-An optional first argument selects another destination, including paths with
-spaces. The build always uses `documentation/` at the repository root.
-`DOCS_CONFIG` lets tests supply local URLs.
-
-## Embedding endpoint
-
-Indexing and semantic searches use an OpenAI-compatible `POST /v1/embeddings`
-endpoint. The default model name is `bge-m3`; override `EMBEDDING_MODEL` when a
-provider exposes the same model under another identifier such as `BAAI/bge-m3`.
-`OPENAI_BASE_URL` must include `/v1`. Write the key to the host file selected by
-`OPENAI_API_KEY_FILE_HOST` (default `.openai_api_key`): Compose mounts it as a
-BuildKit secret while indexing and as a read-only secret file at runtime. The
-file is ignored by Git and Docker. The key, submitted text and returned vectors
-are never logged.
-
-For local Ollama on Docker Desktop:
-
-```bash
-ollama pull bge-m3
-export OPENAI_BASE_URL=http://host.docker.internal:11434/v1
-export EMBEDDING_MODEL=bge-m3
-printf '%s' ollama-local > .openai_api_key
-```
-
-Use `http://127.0.0.1:11434/v1` instead when running the Python commands directly
-on the host. The runtime healthcheck verifies the local bundle only; an endpoint
-failure affects `semantic` and `hybrid`, while `lexical` remains available.
-
-## Build and start
+The base image builds an immutable SQLite FTS index and needs no API key or embedding
+service:
 
 ```bash
 docker compose build mcp-builder
 docker compose up -d --no-build --pull never mcp-builder
 ```
 
-The connected build installs dependencies with **uv 0.12.8** and `uv.lock`, then
-calls the configured embedding endpoint to build the immutable search index.
-No model weights or Hugging Face runtime are included in the image.
+- MCP endpoint: <http://127.0.0.1:8000/mcp>
+- Health endpoint: <http://127.0.0.1:8000/health>
+- Activity: `docker compose logs -f mcp-builder`
 
-## Make targets
+Compose defaults `MCP_BIND_IP` to `127.0.0.1`. The runtime refuses a non-loopback
+publication because this release has no HTTP authentication. Keep the service local;
+an intentionally remote deployment needs a separately designed authenticated gateway.
 
-`Makefile` wraps the commands above plus local development.
-Prerequisites: `make`, `docker` (compose), `uv`, and `bash`/`curl`/`jq` for `docs`.
+Health returns `ok`, `degraded`, or `unready`. Logs contain tool names, lifecycle,
+duration, failure type, and cancellation only. Arguments, results, exception messages,
+file contents, and secrets are not logged.
+
+### Optional BGE-M3 semantic search
+
+Lexical search remains available when no embedding endpoint exists. To build and run a
+hybrid index, place the credential in an ignored file and use the explicit override:
 
 ```bash
-make help     # List the targets
-make docs     # Download and version the documents (scripts/sync-docs.sh)
-make build    # Build the Docker image
-make up       # Start the service (no rebuild)
-make down     # Stop the service
-make restart  # Rebuild then restart
-make logs     # Tail the service logs
-make lint     # Check style with ruff
-make test     # Run the pytest tests
-make test-ollama # Test the real local Ollama bge-m3 endpoint explicitly
-make save     # Export the image to offline-mcp-builder.tar
-make load     # Import offline-mcp-builder.tar
-make clean    # Stop and remove the image
-make all      # Build then start
+export OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+export EMBEDDING_MODEL=bge-m3
+export OPENAI_API_KEY_FILE_HOST=.openai_api_key
+printf '%s' ollama-local > .openai_api_key
+docker compose -f compose.yaml -f compose.semantic.yaml build mcp-builder
+docker compose -f compose.yaml -f compose.semantic.yaml up -d --no-build mcp-builder
 ```
 
-A Docker build step verifies the documents, calls the embedding endpoint, then
-builds SQLite and the NumPy vectors. The final image ships the documentation and
-index, runs read-only and contains no model weights. Runtime semantic queries
-still call the endpoint. An update requires rebuilding then recreating the
-container; synchronisation alone does not modify the running server.
+For a direct host process, use `http://127.0.0.1:11434/v1`. The credential is mounted as
+a Docker secret and is never copied into the image or placed in Compose environment
+values. Hybrid search falls back explicitly to lexical results when a configured
+endpoint becomes unavailable.
 
-- MCP client: <http://localhost:8000/mcp>
-- Health: <http://localhost:8000/health>
+## Configure OpenCode
 
-Follow client calls with `docker compose logs -f mcp-builder`.
-Each tool call logs its name, an identifier, its start, its duration and its
-final status (done, error or cancelled). `tools/list` requests are also
-logged. Arguments, results and file contents are never logged.
-Repeated `Terminating session: None` messages are hidden at INFO level.
-
-`.env` sets the port, listen address, endpoint, model, concurrency and request limits.
-Offline transfer: `docker save -o offline-mcp-builder.tar offline-mcp-builder:0.1.0`,
-then `docker load -i offline-mcp-builder.tar` on the isolated host.
-
-## Code and tests
+Start MCP Builder first, then copy one matching profile into the FastMCP project that
+OpenCode will edit:
 
 ```text
-src/mcp_builder/
-  server.py       Server assembly
-  config/         Official sources and pinned model
-  tools/          One file per MCP tool
-  corpus/         File and manifest verification
-  search/         Chunking, embeddings, indexing and search
-  projects/       uv templates and static validation
-  http/           Request limiting
-scripts/          Download and integration scenarios
-tests/            Builder tests
-Dockerfile        Server and test image builds
-documentation/    Official documents tracked in Git
+integrations/opencode/v1/   OpenCode 1.18.31 schema
+integrations/opencode/v2/   V2 schema and Code Mode
 ```
+
+For a new V1 project on PowerShell:
+
+```powershell
+$Target = 'C:\path\to\fastmcp-project'
+Copy-Item integrations\opencode\v1\opencode.json "$Target\opencode.json"
+New-Item -ItemType Directory -Force "$Target\.opencode\agents" | Out-Null
+Copy-Item integrations\opencode\v1\.opencode\agents\mcp-companion.md `
+  "$Target\.opencode\agents\mcp-companion.md"
+Set-Location $Target
+opencode mcp list
+```
+
+If the target already has `opencode.json`, merge the `default_agent` and `mcp_builder`
+entries instead of overwriting it. The V1 profile configures a remote server at
+`http://127.0.0.1:8000/mcp`, disables OAuth discovery, and uses a 30-second catalog
+timeout. The V2 profile nests the server under `mcp.servers`, uses `protocol: "auto"`,
+keeps Code Mode enabled, and separates startup, catalog, and execution timeouts.
+
+`mcp-companion` is a primary agent and deliberately declares neither a model nor
+permissions, so it inherits the user's OpenCode choices. Its required sequence is:
+discover, clarify, validate the blueprint, generate, implement, execute checks, assess,
+then declare readiness. It does not depend on MCP sampling, elicitation, or tasks.
+
+References: [OpenCode V1 MCP servers](https://opencode.ai/docs/mcp-servers),
+[OpenCode agents](https://opencode.ai/docs/agents), and
+[OpenCode V2 MCP servers](https://opencode.ai/v2/docs/mcp-servers).
+
+## Diagnose the environment
+
+The doctor checks the corpus, immutable index when present, Docker engine, loopback
+port, optional embedding endpoint, bundled OpenCode profiles, CLI version, and active
+MCP connection. Output never includes a credential or remote response body.
+
+```bash
+uv sync --locked
+uv run --locked mcp-builder doctor
+uv run --locked mcp-builder doctor --json
+```
+
+`ok` means every required integration passed. `degraded` is reserved for the optional
+semantic endpoint because lexical search remains usable; missing Docker, an unhealthy
+OpenCode connection, an invalid corpus, or a non-loopback publication are `unready`.
+The command exits 2 for `unready`. It also reads only `MCP_BIND_IP` from a local `.env`
+so that the diagnosis matches Compose without exposing any other setting.
+
+## Development and acceptance
 
 ```bash
 uv sync --locked
 uv run --locked ruff check src scripts tests
 uv run --locked pytest -q
-OPENAI_BASE_URL=http://127.0.0.1:11434/v1 OPENAI_API_KEY=ollama-local \
-  EMBEDDING_MODEL=bge-m3 uv run --locked python scripts/test-ollama-embeddings.py
-# Shell script test on Linux:
 docker compose --profile test build tests
 docker compose --profile test run --rm tests
-# Builder started: generation -> validation -> tests of the returned project
-docker compose --profile test run --rm tests uv run --locked --no-sync python scripts/test-generated-project.py
 ```
 
-The fifteen tools include documentation search/status/read, templates and examples,
-`generate_project`, `generate_tool`, `generate_resource`, `generate_prompt`,
-`generate_component_test`, `get_builder_guide`, static `validate_project`,
-`inspect_project`, `propose_project_patch`, and `review_project_security`.
-`search_docs` exposes its requested/effective mode and automatically falls back from
-hybrid to lexical retrieval when the embedding endpoint is temporarily unavailable.
-For an existing codebase, inspect it first, review diagnostics, then request a patch.
-Patch proposals are never applied by the service and include the SHA-256 of every
-replaced source file so clients can reject stale changes.
-Submitted files are neither executed nor retained. Generated projects use uv; their
-owner creates and versions their `uv.lock` before a locked build.
+The generated-project scenario creates both templates in temporary directories, locks
+and installs each environment, runs Ruff and Pytest, then starts the HTTP transport and
+performs real MCP discovery and invocation:
+
+```bash
+uv run --locked python scripts/test-generated-project.py
+# Keep one generated project for inspection:
+uv run --locked python scripts/test-generated-project.py \
+  --template structured --output artifacts/generated-project
+```
+
+The modern OpenCode verification plan additionally requires MCP Inspector and the
+[official MCP conformance suite](https://github.com/modelcontextprotocol/conformance).
+MCP Builder describes these checks; OpenCode executes them and submits bounded outcomes
+to `assess_readiness`.
+
+## Repository layout
+
+```text
+src/mcp_builder/
+  server.py       HTTP assembly, health, and loopback guard
+  doctor.py       human and JSON diagnostics
+  tools/          companion and advanced MCP tools
+  projects/       blueprints, generation, assessment, and validation
+  corpus/         source-manifest verification
+  search/         lexical and optional semantic indexing
+integrations/     ready-to-copy OpenCode V1 and V2 profiles
+scripts/          documentation and end-to-end scenarios
+tests/            deterministic unit and contract tests
+documentation/    official, manifest-verified documents tracked by Git
+```
+
+Useful Make targets include `docs`, `build`, `up`, `down`, `restart`, `logs`, `lint`,
+`test`, `test-ollama`, `save`, `load`, and `clean`.

@@ -41,7 +41,9 @@ def divide(a: float, b: float) -> float:
 
 import pytest
 from fastmcp import Client
+
 from app.server import mcp
+
 
 @pytest.mark.asyncio
 async def test_add():

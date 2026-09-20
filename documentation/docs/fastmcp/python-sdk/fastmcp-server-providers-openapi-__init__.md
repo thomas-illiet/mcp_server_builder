@@ -1,0 +1,23 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# __init__
+
+# `fastmcp.server.providers.openapi`
+
+OpenAPI provider for FastMCP.
+
+This module provides OpenAPI integration for FastMCP through the Provider pattern.
+
+Example:
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from fastmcp import FastMCP
+from fastmcp.server.providers.openapi import OpenAPIProvider
+import httpx2
+
+client = httpx2.AsyncClient(base_url="https://api.example.com")
+provider = OpenAPIProvider(openapi_spec=spec, client=client)
+mcp = FastMCP("API Server", providers=[provider])
+```

@@ -39,8 +39,9 @@ def _data(result):
 
 
 @pytest.mark.asyncio
-async def test_new_tools_are_published_with_structured_schemas_and_callable():
+async def test_new_tools_are_published_with_structured_schemas_and_callable(monkeypatch):
     """Every companion generator is discoverable and works through MCP transport."""
+    monkeypatch.setenv("MCP_BUILDER_TOOL_PROFILE", "advanced")
     async with Client(create_server(ToolStore())) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
         expected = {
@@ -90,8 +91,16 @@ async def test_new_tools_are_published_with_structured_schemas_and_callable():
                 "def ping() -> str:\n    return 'pong'\n"
             )},
         ]
-        inspection = await client.call_tool("inspect_project", {"files": project_files})
+        inspection = await client.call_tool(
+            "inspect_project", {"files": project_files, "profile": "framework"}
+        )
         assert _data(inspection)["architecture"]["component_counts"]["tool"] == 1
+        assert _data(inspection)["validation"]["profile"] == "framework"
+
+        validation = await client.call_tool(
+            "validate_project", {"files": project_files, "profile": "strict"}
+        )
+        assert _data(validation)["profile"] == "strict"
 
         patch = await client.call_tool("propose_project_patch", {
             "kind": "tool",

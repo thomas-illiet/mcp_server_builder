@@ -1,0 +1,902 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# server
+
+# `fastmcp.server.server`
+
+FastMCP - A more ergonomic interface for MCP servers.
+
+## Functions
+
+### `default_lifespan` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L262" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+default_lifespan(server: FastMCP[LifespanResultT]) -> AsyncIterator[Any]
+```
+
+Default lifespan context manager that does nothing.
+
+**Args:**
+
+* `server`: The server instance this lifespan is managing
+
+**Returns:**
+
+* An empty dictionary as the lifespan result.
+
+### `create_proxy` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2523" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+create_proxy(target: Client[ClientTransportT] | ClientTransport | FastMCP[Any] | SDKServer | AnyUrl | Path | MCPConfig | dict[str, Any] | str, **settings: Any) -> FastMCPProxy
+```
+
+Create a FastMCP proxy server for the given target.
+
+This is the recommended way to create a proxy server. For lower-level control,
+use `FastMCPProxy` or `ProxyProvider` directly from `fastmcp.server.providers.proxy`.
+
+**Args:**
+
+* `target`: The backend to proxy to. Can be:
+* A Client instance (connected or disconnected)
+* A ClientTransport
+* A FastMCP server instance
+* A URL string or AnyUrl
+* A Path to a server script
+* An MCPConfig or dict
+* `mode`: Protocol-era negotiation for auto-created proxy clients (a
+  non-Client target). By default (`None`) the backend MIRRORS the
+  front connection's negotiated era per request, so the whole chain
+  speaks one era end-to-end: a modern front reaches a modern backend
+  (a guard tool's `InputRequiredResult` (SEP-2322) round-trips) and a
+  handshake front reaches a handshake backend (server-initiated
+  sampling / elicitation / roots push-forwarding works). Pass an
+  explicit mode (e.g. `"auto"` or a version string) to pin the
+  backend era regardless of the front; this overrides mirroring and is
+  appropriate when the backend only speaks one era. Ignored when
+  `target` is already a `Client` (which carries its own mode).
+* `**settings`: Additional settings passed to FastMCPProxy (name, etc.)
+
+**Returns:**
+
+* A FastMCPProxy server that proxies to the target.
+
+## Classes
+
+### `StateValue` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L297" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+Wrapper for stored context state values.
+
+### `FastMCP` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L303" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+**Methods:**
+
+#### `name` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L532" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+name(self) -> str
+```
+
+#### `instructions` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L536" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+instructions(self) -> str | None
+```
+
+#### `instructions` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L540" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+instructions(self, value: str | None) -> None
+```
+
+#### `version` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L544" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+version(self) -> str | None
+```
+
+#### `website_url` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L548" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+website_url(self) -> str | None
+```
+
+#### `icons` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L552" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+icons(self) -> list[mcp_types.Icon]
+```
+
+#### `local_provider` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L559" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+local_provider(self) -> LocalProvider
+```
+
+The server's local provider, which stores directly-registered components.
+
+Use this to remove components:
+
+mcp.local\_provider.remove\_tool("my\_tool")
+mcp.local\_provider.remove\_resource("data://info")
+mcp.local\_provider.remove\_prompt("my\_prompt")
+
+#### `add_middleware` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L623" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_middleware(self, middleware: Middleware) -> None
+```
+
+#### `add_extension` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L626" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_extension(self, extension: ServerExtension) -> None
+```
+
+Register a server extension (SEP-2133).
+
+An extension contributes a negotiated capability, additive request
+methods, a `tools/call` interceptor, and an optional lifespan — each
+with access to FastMCP-level constructs (the component registry,
+`Context`, auth scope). Its capability is advertised only while it is
+registered.
+
+The extension is bound to this server (so its handlers and interceptor
+can reach it), its method bindings are wired onto the low-level server,
+and it is recorded for capability advertisement, interception, and
+lifespan entry. Registering two extensions with the same identifier is
+an error, as is registering after the server's lifespan has started —
+the extension's lifespan could no longer run, leaving it silently
+half-active.
+
+Extensions are served by the server they are registered on. A mounted
+child's extensions do not propagate to the root: the root serves the
+wire, so only root-registered extensions advertise capabilities and
+answer methods (matching the lifespan, which also defers to the root).
+Register extensions on the server you run.
+
+#### `add_provider` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L698" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_provider(self, provider: Provider) -> None
+```
+
+Add a provider for dynamic tools, resources, and prompts.
+
+Providers are queried in registration order. The first provider to return
+a non-None result wins. Static components (registered via decorators)
+always take precedence over providers.
+
+**Args:**
+
+* `provider`: A Provider instance that will provide components dynamically.
+* `namespace`: Optional namespace prefix. When set:
+* Tools become "namespace\_toolname"
+* Resources become "protocol://namespace/path"
+* Prompts become "namespace\_promptname"
+
+#### `get_tasks` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L810" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+get_tasks(self) -> Sequence[FastMCPComponent]
+```
+
+Get task-eligible components with all transforms applied.
+
+Overrides AggregateProvider.get\_tasks() to apply server-level transforms
+after aggregation. AggregateProvider handles provider-level namespacing.
+
+#### `add_transform` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L839" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_transform(self, transform: Transform) -> None
+```
+
+Add a server-level transform.
+
+Server-level transforms are applied after all providers are aggregated.
+They transform tools, resources, and prompts from ALL providers.
+
+**Args:**
+
+* `transform`: The transform to add.
+
+#### `list_tools` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L859" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+list_tools(self) -> Sequence[Tool]
+```
+
+List all enabled tools from providers.
+
+Overrides Provider.list\_tools() to add enabled filtering, auth filtering,
+and middleware execution. Returns all versions (no deduplication).
+Protocol handlers deduplicate for MCP wire format.
+
+#### `get_tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L942" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None
+```
+
+Get a tool by name, filtering disabled tools.
+
+Overrides Provider.get\_tool() to filter disabled tools after all
+transforms (including session-level) have been applied. This ensures
+session transforms can override provider-level disables.
+
+When the highest version is disabled and no explicit version was
+requested, falls back to the next-highest enabled version.
+
+**Args:**
+
+* `name`: The tool name.
+* `version`: Version filter (None returns highest version).
+
+**Returns:**
+
+* The tool if found and enabled, None otherwise.
+
+#### `list_resources` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L996" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+list_resources(self) -> Sequence[Resource]
+```
+
+List all enabled resources from providers.
+
+Overrides Provider.list\_resources() to add visibility filtering, auth filtering,
+and middleware execution. Returns all versions (no deduplication).
+Protocol handlers deduplicate for MCP wire format.
+
+#### `get_resource` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1081" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+get_resource(self, uri: str, version: VersionSpec | None = None) -> Resource | None
+```
+
+Get a resource by URI, filtering disabled resources.
+
+Overrides Provider.get\_resource() to add visibility filtering after all
+transforms (including session-level) have been applied.
+
+When the highest version is disabled and no explicit version was
+requested, falls back to the next-highest enabled version.
+
+**Args:**
+
+* `uri`: The resource URI.
+* `version`: Version filter (None returns highest version).
+
+**Returns:**
+
+* The resource if found and enabled, None otherwise.
+
+#### `list_resource_templates` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1131" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+list_resource_templates(self) -> Sequence[ResourceTemplate]
+```
+
+List all enabled resource templates from providers.
+
+Overrides Provider.list\_resource\_templates() to add visibility filtering,
+auth filtering, and middleware execution. Returns all versions (no deduplication).
+Protocol handlers deduplicate for MCP wire format.
+
+#### `get_resource_template` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1213" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+get_resource_template(self, uri: str, version: VersionSpec | None = None) -> ResourceTemplate | None
+```
+
+Get a resource template by URI, filtering disabled templates.
+
+Overrides Provider.get\_resource\_template() to add visibility filtering after
+all transforms (including session-level) have been applied.
+
+When the highest version is disabled and no explicit version was
+requested, falls back to the next-highest enabled version.
+
+**Args:**
+
+* `uri`: The template URI.
+* `version`: Version filter (None returns highest version).
+
+**Returns:**
+
+* The template if found and enabled, None otherwise.
+
+#### `list_prompts` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1267" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+list_prompts(self) -> Sequence[Prompt]
+```
+
+List all enabled prompts from providers.
+
+Overrides Provider.list\_prompts() to add visibility filtering, auth filtering,
+and middleware execution. Returns all versions (no deduplication).
+Protocol handlers deduplicate for MCP wire format.
+
+#### `get_prompt` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1339" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+get_prompt(self, name: str, version: VersionSpec | None = None) -> Prompt | None
+```
+
+Get a prompt by name, filtering disabled prompts.
+
+Overrides Provider.get\_prompt() to add visibility filtering after all
+transforms (including session-level) have been applied.
+
+When the highest version is disabled and no explicit version was
+requested, falls back to the next-highest enabled version.
+
+**Args:**
+
+* `name`: The prompt name.
+* `version`: Version filter (None returns highest version).
+
+**Returns:**
+
+* The prompt if found and enabled, None otherwise.
+
+#### `call_tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1389" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> ToolResult
+```
+
+Call a tool by name.
+
+This is the public API for executing tools. By default, middleware is applied.
+
+**Args:**
+
+* `name`: The tool name
+* `arguments`: Tool arguments (optional)
+* `version`: Specific version to call. If None, calls highest version.
+* `run_middleware`: If True (default), apply the middleware chain.
+  Set to False when called from middleware to avoid re-applying.
+
+**Returns:**
+
+* ToolResult.
+
+A guard tool that requests client input (SEP-2322 multi-round-trip)
+returns an `InputRequiredToolResult` (a `ToolResult` subclass); it
+flows back through the middleware chain as an ordinary result and the
+wire handler unwraps it into an `InputRequiredResult` on the response.
+
+**Raises:**
+
+* `NotFoundError`: If tool not found or disabled
+* `ToolError`: If tool execution fails
+* `ValidationError`: If arguments fail validation
+
+#### `read_resource` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1579" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+read_resource(self, uri: str) -> ResourceResult
+```
+
+Read a resource by URI.
+
+This is the public API for reading resources. By default, middleware is applied.
+Checks concrete resources first, then templates.
+
+**Args:**
+
+* `uri`: The resource URI
+* `version`: Specific version to read. If None, reads highest version.
+* `run_middleware`: If True (default), apply the middleware chain.
+  Set to False when called from middleware to avoid re-applying.
+
+**Returns:**
+
+* ResourceResult.
+
+**Raises:**
+
+* `NotFoundError`: If resource not found or disabled
+* `ResourceError`: If resource read fails
+
+#### `render_prompt` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1737" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+render_prompt(self, name: str, arguments: dict[str, Any] | None = None) -> PromptResult
+```
+
+Render a prompt by name.
+
+This is the public API for rendering prompts. By default, middleware is applied.
+Use get\_prompt() to retrieve the prompt definition without rendering.
+
+**Args:**
+
+* `name`: The prompt name
+* `arguments`: Prompt arguments (optional)
+* `version`: Specific version to render. If None, renders highest version.
+* `run_middleware`: If True (default), apply the middleware chain.
+  Set to False when called from middleware to avoid re-applying.
+
+**Returns:**
+
+* PromptResult.
+
+**Raises:**
+
+* `NotFoundError`: If prompt not found or disabled
+* `PromptError`: If prompt rendering fails
+
+#### `add_tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1817" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_tool(self, tool: Tool | Callable[..., Any]) -> Tool
+```
+
+Add a tool to the server.
+
+The tool function can optionally request a Context object by adding a parameter
+with the Context type annotation. See the @tool decorator for examples.
+
+**Args:**
+
+* `tool`: The Tool instance or @tool-decorated function to register
+
+**Returns:**
+
+* The tool instance that was added to the server.
+
+#### `tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1832" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+tool(self, name_or_fn: F) -> F
+```
+
+#### `tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1853" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+tool(self, name_or_fn: str | None = None) -> Callable[[F], F]
+```
+
+#### `tool` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1873" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+tool(self, name_or_fn: str | AnyFunction | None = None) -> Callable[[AnyFunction], FunctionTool] | FunctionTool | partial[Callable[[AnyFunction], FunctionTool] | FunctionTool]
+```
+
+Decorator to register a tool.
+
+Tools can optionally request a Context object by adding a parameter with the
+Context type annotation. The context provides access to MCP capabilities like
+logging, progress reporting, and resource access.
+
+This decorator supports multiple calling patterns:
+
+* @server.tool (without parentheses)
+* @server.tool (with empty parentheses)
+* @server.tool("custom\_name") (with name as first argument)
+* @server.tool(name="custom\_name") (with name as keyword argument)
+* server.tool(function, name="custom\_name") (direct function call)
+
+**Args:**
+
+* `name_or_fn`: Either a function (when used as @tool), a string name, or None
+* `name`: Optional name for the tool (keyword-only, alternative to name\_or\_fn)
+* `description`: Optional description of what the tool does
+* `tags`: Optional set of tags for categorizing the tool
+* `output_schema`: Optional JSON schema for the tool's output
+* `annotations`: Optional annotations about the tool's behavior
+* `meta`: Optional meta information about the tool
+
+**Examples:**
+
+Register a tool with a custom name:
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+@server.tool
+def my_tool(x: int) -> str:
+    return str(x)
+
+# Register a tool with a custom name
+@server.tool
+def my_tool(x: int) -> str:
+    return str(x)
+
+@server.tool("custom_name")
+def my_tool(x: int) -> str:
+    return str(x)
+
+@server.tool(name="custom_name")
+def my_tool(x: int) -> str:
+    return str(x)
+
+# Direct function call
+server.tool(my_function, name="custom_name")
+```
+
+#### `add_resource` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1970" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_resource(self, resource: Resource | Callable[..., Any]) -> Resource | ResourceTemplate
+```
+
+Add a resource to the server.
+
+**Args:**
+
+* `resource`: A Resource instance or @resource-decorated function to add
+
+**Returns:**
+
+* The resource instance that was added to the server.
+
+#### `add_template` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1983" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_template(self, template: ResourceTemplate) -> ResourceTemplate
+```
+
+Add a resource template to the server.
+
+**Args:**
+
+* `template`: A ResourceTemplate instance to add
+
+**Returns:**
+
+* The template instance that was added to the server.
+
+#### `resource` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L1994" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+resource(self, uri: str) -> Callable[[F], F]
+```
+
+Decorator to register a function as a resource.
+
+The function will be called when the resource is read to generate its content.
+The function can return:
+
+* str for text content
+* bytes for binary content
+* other types will be converted to JSON
+
+Resources can optionally request a Context object by adding a parameter with the
+Context type annotation. The context provides access to MCP capabilities like
+logging, progress reporting, and session information.
+
+If the URI contains parameters (e.g. "resource://{param}") or the function
+has parameters, it will be registered as a template resource.
+
+**Args:**
+
+* `uri`: URI for the resource (e.g. "resource://my-resource" or "resource://{param}")
+* `name`: Optional name for the resource
+* `description`: Optional description of the resource
+* `mime_type`: Optional MIME type for the resource
+* `tags`: Optional set of tags for categorizing the resource
+* `annotations`: Optional annotations about the resource's behavior
+* `meta`: Optional meta information about the resource
+
+**Examples:**
+
+Register a resource with a custom name:
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+@server.resource("resource://my-resource")
+def get_data() -> str:
+    return "Hello, world!"
+
+@server.resource("resource://my-resource")
+async get_data() -> str:
+    data = await fetch_data()
+    return f"Hello, world! {data}"
+
+@server.resource("resource://{city}/weather")
+def get_weather(city: str) -> str:
+    return f"Weather for {city}"
+
+@server.resource("resource://{city}/weather")
+async def get_weather_with_context(city: str, ctx: Context) -> str:
+    await ctx.info(f"Fetching weather for {city}")
+    return f"Weather for {city}"
+
+@server.resource("resource://{city}/weather")
+async def get_weather(city: str) -> str:
+    data = await fetch_weather(city)
+    return f"Weather for {city}: {data}"
+```
+
+#### `add_prompt` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2113" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_prompt(self, prompt: Prompt | Callable[..., Any]) -> Prompt
+```
+
+Add a prompt to the server.
+
+**Args:**
+
+* `prompt`: A Prompt instance or @prompt-decorated function to add
+
+**Returns:**
+
+* The prompt instance that was added to the server.
+
+#### `prompt` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2125" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+prompt(self, name_or_fn: F) -> F
+```
+
+#### `prompt` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2140" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+prompt(self, name_or_fn: str | None = None) -> Callable[[F], F]
+```
+
+#### `prompt` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2154" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+prompt(self, name_or_fn: str | AnyFunction | None = None) -> Callable[[AnyFunction], FunctionPrompt] | FunctionPrompt | partial[Callable[[AnyFunction], FunctionPrompt] | FunctionPrompt]
+```
+
+Decorator to register a prompt.
+
+Prompts can optionally request a Context object by adding a parameter with the
+Context type annotation. The context provides access to MCP capabilities like
+logging, progress reporting, and session information.
+
+This decorator supports multiple calling patterns:
+
+* @server.prompt (without parentheses)
+* @server.prompt() (with empty parentheses)
+* @server.prompt("custom\_name") (with name as first argument)
+* @server.prompt(name="custom\_name") (with name as keyword argument)
+* server.prompt(function, name="custom\_name") (direct function call)
+
+Args:
+name\_or\_fn: Either a function (when used as @prompt), a string name, or None
+name: Optional name for the prompt (keyword-only, alternative to name\_or\_fn)
+description: Optional description of what the prompt does
+tags: Optional set of tags for categorizing the prompt
+meta: Optional meta information about the prompt
+
+Examples:
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+@server.prompt
+def analyze_table(table_name: str) -> list[Message]:
+    schema = read_table_schema(table_name)
+    return [
+        {
+            "role": "user",
+            "content": f"Analyze this schema:
+{schema}"
+        }
+    ]
+
+@server.prompt()
+async def analyze_with_context(table_name: str, ctx: Context) -> list[Message]:
+    await ctx.info(f"Analyzing table {table_name}")
+    schema = read_table_schema(table_name)
+    return [
+        {
+            "role": "user",
+            "content": f"Analyze this schema:
+{schema}"
+        }
+    ]
+
+@server.prompt("custom_name")
+async def analyze_file(path: str) -> list[Message]:
+    content = await read_file(path)
+    return [
+        {
+            "role": "user",
+            "content": {
+                "type": "resource",
+                "resource": {
+                    "uri": f"file://{path}",
+                    "text": content
+                }
+            }
+        }
+    ]
+
+@server.prompt(name="custom_name")
+def another_prompt(data: str) -> list[Message]:
+    return [{"role": "user", "content": data}]
+
+# Direct function call
+server.prompt(my_function, name="custom_name")
+```
+
+#### `add_completion_handler` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2252" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+add_completion_handler(self, handler: CompletionHandler) -> None
+```
+
+Register the server's argument-completion handler.
+
+A server has a single completion handler that answers every
+`completion/complete` request, switching on the reference (a prompt or
+resource template) and the argument being completed. Registering it also
+registers the low-level `completion/complete` handler, which is what
+makes the SDK declare the completions capability — so the capability is
+advertised exactly when the server can answer. Calling this again
+replaces the handler.
+
+**Args:**
+
+* `handler`: A callable taking the reference, the
+  `CompletionArgument`, and the optional `CompletionContext`, and
+  returning candidate values (a `Completion`, a list of strings,
+  or None). May be sync or async.
+
+#### `completion` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2273" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+completion(self, handler: CompletionHandler) -> CompletionHandler
+```
+
+#### `completion` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2276" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+completion(self) -> Callable[[CompletionHandler], CompletionHandler]
+```
+
+#### `completion` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2280" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+completion(self, handler: CompletionHandler | None = None) -> CompletionHandler | Callable[[CompletionHandler], CompletionHandler]
+```
+
+Decorator to register the server's argument-completion handler.
+
+The handler answers `completion/complete` requests for prompt arguments
+and resource-template parameters. It receives the reference being
+completed, the argument (its name and the partial value typed so far),
+and the context of arguments already supplied, and returns candidate
+values. Return a list of strings, a `Completion` (to include pagination
+hints), or None when the reference/argument is not one it handles — an
+unhandled reference yields an empty completion, not an error.
+
+Registering a handler declares the completions capability; a server with
+none does not advertise it. This works identically on the handshake and
+modern protocol eras.
+
+Supports both `@mcp.completion` and `@mcp.completion()`.
+
+Example:
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from fastmcp import FastMCP
+from mcp_types import Completion, PromptReference
+
+mcp = FastMCP("Completion Server")
+
+@mcp.prompt
+def poem(theme: str) -> str:
+    return f"Write a poem about {theme}"
+
+@mcp.completion
+def complete(ref, argument, context):
+    if isinstance(ref, PromptReference) and ref.name == "poem":
+        if argument.name == "theme":
+            options = ["nature", "love", "adventure"]
+            return [o for o in options if o.startswith(argument.value)]
+    return None
+```
+
+#### `mount` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2330" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+mount(self, server: FastMCP[LifespanResultT], namespace: str | None = None, tool_names: dict[str, str] | None = None) -> None
+```
+
+Mount another FastMCP server on this server with an optional namespace.
+
+Mounting establishes a dynamic connection between servers. When a client
+interacts with a mounted server's objects through the parent server, requests
+are forwarded to the mounted server in real-time. This means changes to the
+mounted server are immediately reflected when accessed through the parent.
+
+When a server is mounted with a namespace:
+
+* Tools from the mounted server are accessible with namespaced names.
+  Example: If server has a tool named "get\_weather", it will be available as "namespace\_get\_weather".
+* Resources are accessible with namespaced URIs.
+  Example: If server has a resource with URI "weather://forecast", it will be available as
+  "weather://namespace/forecast".
+* Templates are accessible with namespaced URI templates.
+  Example: If server has a template with URI "weather://location/{id}", it will be available
+  as "weather://namespace/location/{id}".
+* Prompts are accessible with namespaced names.
+  Example: If server has a prompt named "weather\_prompt", it will be available as
+  "namespace\_weather\_prompt".
+
+When a server is mounted without a namespace (namespace=None), its tools, resources, templates,
+and prompts are accessible with their original names. Multiple servers can be mounted
+without namespaces, and they will be tried in order until a match is found.
+
+The mounted server's lifespan is executed when the parent server starts, and its
+middleware chain is invoked for all operations (tool calls, resource reads, prompts).
+
+**Args:**
+
+* `server`: The FastMCP server to mount.
+* `namespace`: Optional namespace to use for the mounted server's objects. If None,
+  the server's objects are accessible with their original names.
+* `tool_names`: Optional mapping of original tool names to custom names. Use this
+  to override namespaced names. Keys are the original tool names from the
+  mounted server.
+
+#### `from_openapi` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2401" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from_openapi(cls, openapi_spec: dict[str, Any], client: httpx2.AsyncClient | None = None, name: str = 'OpenAPI Server', route_maps: list[RouteMap] | None = None, route_map_fn: OpenAPIRouteMapFn | None = None, mcp_component_fn: OpenAPIComponentFn | None = None, mcp_names: dict[str, str] | None = None, tags: set[str] | None = None, validate_output: bool = True, **settings: Any) -> Self
+```
+
+Create a FastMCP server from an OpenAPI specification.
+
+**Args:**
+
+* `openapi_spec`: OpenAPI schema as a dictionary
+* `client`: Optional httpx2 AsyncClient for making HTTP requests.
+  If not provided, a default client is created using the first
+  server URL from the OpenAPI spec with a 30-second timeout.
+  Legacy httpx clients are temporarily accepted with a deprecation
+  warning.
+* `name`: Name for the MCP server
+* `route_maps`: Optional list of RouteMap objects defining route mappings
+* `route_map_fn`: Optional callable for advanced route type mapping
+* `mcp_component_fn`: Optional callable for component customization
+* `mcp_names`: Optional dictionary mapping operationId to component names
+* `tags`: Optional set of tags to add to all components
+* `validate_output`: If True (default), tools use the output schema
+  extracted from the OpenAPI spec for response validation. If
+  False, a permissive schema is used instead, allowing any
+  response structure while still returning structured JSON.
+* `**settings`: Additional settings passed to FastMCP
+
+**Returns:**
+
+* A FastMCP server with an OpenAPIProvider attached.
+
+#### `from_fastapi` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2454" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+from_fastapi(cls, app: Any, name: str | None = None, route_maps: list[RouteMap] | None = None, route_map_fn: OpenAPIRouteMapFn | None = None, mcp_component_fn: OpenAPIComponentFn | None = None, mcp_names: dict[str, str] | None = None, httpx_client_kwargs: dict[str, Any] | None = None, tags: set[str] | None = None, **settings: Any) -> Self
+```
+
+Create a FastMCP server from a FastAPI application.
+
+**Args:**
+
+* `app`: FastAPI application instance
+* `name`: Name for the MCP server (defaults to app.title)
+* `route_maps`: Optional list of RouteMap objects defining route mappings
+* `route_map_fn`: Optional callable for advanced route type mapping
+* `mcp_component_fn`: Optional callable for component customization
+* `mcp_names`: Optional dictionary mapping operationId to component names
+* `httpx_client_kwargs`: Optional kwargs passed to httpx2.AsyncClient.
+  Use this to configure timeout and other client settings.
+* `tags`: Optional set of tags to add to all components
+* `**settings`: Additional settings passed to FastMCP
+
+**Returns:**
+
+* A FastMCP server with an OpenAPIProvider attached.
+
+#### `generate_name` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/server/server.py#L2509" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+generate_name(cls, name: str | None = None) -> str
+```

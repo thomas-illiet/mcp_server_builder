@@ -1,0 +1,21 @@
+services:
+  mcp-builder:
+    build:
+      args:
+        ENABLE_SEMANTIC: "1"
+        OPENAI_BASE_URL: ${OPENAI_BASE_URL:?OPENAI_BASE_URL is required}
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      secrets:
+        - openai_api_key
+    environment:
+      EMBEDDING_CONCURRENCY: ${EMBEDDING_CONCURRENCY:-1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_TIMEOUT: ${EMBEDDING_TIMEOUT:-60}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:?OPENAI_BASE_URL is required}
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+    secrets:
+      - openai_api_key
+
+secrets:
+  openai_api_key:
+    file: ${OPENAI_API_KEY_FILE_HOST:-.openai_api_key}

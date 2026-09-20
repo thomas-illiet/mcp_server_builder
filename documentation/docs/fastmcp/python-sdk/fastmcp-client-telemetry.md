@@ -1,0 +1,21 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://gofastmcp.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# telemetry
+
+# `fastmcp.client.telemetry`
+
+Client-side telemetry helpers.
+
+## Functions
+
+### `client_span` <sup><a href="https://github.com/PrefectHQ/fastmcp/blob/main/fastmcp_slim/fastmcp/client/telemetry.py#L13" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python theme={"theme":{"light":"snazzy-light","dark":"dark-plus"}}
+client_span(name: str, method: str, component_key: str, session_id: str | None = None, resource_uri: str | None = None, tool_name: str | None = None, prompt_name: str | None = None) -> Generator[Span, None, None]
+```
+
+Create a CLIENT span with standard MCP attributes.
+
+Automatically records any exception on the span and sets error status.

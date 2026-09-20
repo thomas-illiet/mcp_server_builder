@@ -21,7 +21,7 @@ def _change(path: str, content: str, reason: str, existing: str | None = None) -
 
 
 def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> PatchProposal:
-    """Propose component, test and explicit registration changes for an existing project."""
+    """Propose only non-destructive component, test, and registration changes."""
     if not 1 <= len(files) <= 100:
         raise ValueError("Between 1 and 100 files are required")
     if sum(len(item.get("content", "").encode()) for item in files) > 1_000_000:
@@ -45,6 +45,29 @@ def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> 
     generated = generator(model.model_validate(specification))
     component, test = generated.files
     name = component.path.rsplit("/", 1)[-1].removesuffix(".py")
+    conflicts = [
+        {
+            "path": path,
+            "reason": (
+                "A generated skeleton must not replace existing code. OpenCode must inspect "
+                "this file and produce a targeted diff."
+            ),
+            "original_sha256": _digest(file_map[path]),
+        }
+        for path in (component.path, test.path)
+        if path in file_map
+    ]
+    if conflicts:
+        return PatchProposal(
+            changes=[],
+            conflicts=conflicts,
+            warnings=[
+                "No changes were proposed because a component or focused test already exists."
+            ],
+            assumptions=generated.assumptions,
+            references=generated.references,
+        )
+
     init_path = f"app/{package}/__init__.py"
     init_existing = file_map.get(init_path)
     init_content = init_existing or f'"""Explicitly register {package}."""\n'
@@ -61,19 +84,15 @@ def propose_project_patch(kind: str, specification: dict, files: list[dict]) -> 
     )
     changes = [
         _change(component.path, component.content,
-                f"Add or regenerate the {kind} {name} in its dedicated module.",
-                file_map.get(component.path)),
+                f"Add the {kind} {name} in its dedicated module."),
         _change(test.path, test.content,
-                f"Add or regenerate the focused test for {kind} {name}.", file_map.get(test.path)),
+                f"Add the focused test for {kind} {name}."),
     ]
     if not registered:
         separator = "" if init_content.endswith("\n") else "\n"
         updated = f"{init_content}{separator}\nfrom . import {name} as {name}\n"
         changes.append(_change(init_path, updated,
                                f"Register the {name} module explicitly.", init_existing))
-    warnings = list(generated.warnings)
-    if component.path in file_map or test.path in file_map:
-        warnings.append("At least one existing file would be replaced; verify original_sha256.")
-    return PatchProposal(changes=changes, warnings=warnings,
+    return PatchProposal(changes=changes, conflicts=[], warnings=list(generated.warnings),
                          assumptions=generated.assumptions,
                          references=generated.references)
